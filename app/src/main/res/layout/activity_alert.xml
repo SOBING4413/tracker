@@ -2,6 +2,6 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="32dp" android:background="@color/bg_dark">
     <TextView android:id="@+id/alertTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/danger" android:textSize="26sp" android:textStyle="bold" android:gravity="center"/>
     <TextView android:id="@+id/alertBody" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_primary" android:textSize="20sp" android:layout_marginTop="24dp" android:gravity="center"/>
-    <Button android:id="@+id/btnLocate" android:layout_width="match_parent" android:layout_height="72dp" android:text="Lihat lokasi" android:layout_marginTop="40dp"/>
-    <Button android:id="@+id/btnConfirm" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="72dp" android:text="Konfirmasi diterima" android:layout_marginTop="12dp"/>
+    <Button android:id="@+id/btnLocate" android:layout_width="match_parent" android:layout_height="72dp" android:text="@string/alert_locate" android:layout_marginTop="40dp"/>
+    <Button android:id="@+id/btnConfirm" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="72dp" android:text="@string/alert_confirm" android:layout_marginTop="12dp"/>
 </LinearLayout>

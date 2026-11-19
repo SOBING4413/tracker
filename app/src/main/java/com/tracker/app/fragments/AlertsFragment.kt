@@ -16,10 +16,10 @@ class AlertsFragment : Fragment() {
         v.findViewById<TextView>(R.id.list).text = TrackerState.alerts.reversed().joinToString("\n\n") {
             val km = String.format(Locale.US, "%.1f", it.distanceM / 1000.0)
             "${f.format(Date(it.ts))}  " + when (it.type) {
-                "sos" -> "SOS dari ${it.name ?: "Rider"}: ${it.message.orEmpty()}"
-                "rejoined" -> "${it.name ?: "Rider"} kembali ke rombongan"
-                else -> "${it.name ?: "Rider"} tertinggal ($km KM)"
+                "sos" -> getString(R.string.alerts_sos, it.name ?: getString(R.string.rider), it.message.orEmpty())
+                "rejoined" -> getString(R.string.alerts_rejoined, it.name ?: getString(R.string.rider))
+                else -> getString(R.string.alerts_separated, it.name ?: getString(R.string.rider), km)
             }
-        }.ifEmpty { "Belum ada peringatan" }
+        }.ifEmpty { getString(R.string.alerts_none) }
     }
 }

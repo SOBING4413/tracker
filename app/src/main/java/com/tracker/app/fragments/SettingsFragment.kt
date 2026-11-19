@@ -10,6 +10,7 @@ import com.tracker.app.activities.LoginActivity
 import com.tracker.app.network.ApiClient
 import com.tracker.app.services.TrackerService
 import com.tracker.app.services.TrackerState
+import com.tracker.app.utils.LocaleUtil
 import com.tracker.app.utils.Prefs
 import org.json.JSONObject
 import kotlin.concurrent.thread
@@ -29,7 +30,7 @@ class SettingsFragment : Fragment() {
                 override fun onNothingSelected(p: AdapterView<*>?) {}
             }
         }
-        spin(R.id.gpsInterval, intervals, "detik", Prefs.gpsIntervalSec) { Prefs.gpsIntervalSec = it; Toast.makeText(context, "Berlaku saat tracking dimulai ulang", Toast.LENGTH_SHORT).show() }
+        spin(R.id.gpsInterval, intervals, getString(R.string.unit_sec), Prefs.gpsIntervalSec) { Prefs.gpsIntervalSec = it; Toast.makeText(context, getString(R.string.settings_gps_restart), Toast.LENGTH_SHORT).show() }
         spin(R.id.threshold, thresholds, "m", TrackerState.group?.thresholdM ?: Prefs.thresholdM) { m ->
             Prefs.thresholdM = m
             TrackerState.group?.let { g -> thread { val r = runCatching { ApiClient.patchGroup(g.id, JSONObject().put("thresholdM", m)) }
@@ -39,6 +40,8 @@ class SettingsFragment : Fragment() {
         v.findViewById<Switch>(R.id.vibrate).apply { isChecked = Prefs.alertVibrate; setOnCheckedChangeListener { _, b -> Prefs.alertVibrate = b } }
         v.findViewById<Switch>(R.id.share).apply { isChecked = Prefs.shareLocation; setOnCheckedChangeListener { _, b ->
             Prefs.shareLocation = b; TrackerService.instance?.send(JSONObject().put("t", "share").put("on", b)) } }
+        v.findViewById<View>(R.id.credits).setOnClickListener { startActivity(Intent(requireContext(), com.tracker.app.activities.CreditsActivity::class.java)) }
+        v.findViewById<Button>(R.id.language).apply { text = getString(R.string.settings_language_fmt, LocaleUtil.currentLabel(requireContext())); setOnClickListener { LocaleUtil.showPicker(requireActivity() as androidx.appcompat.app.AppCompatActivity) } }
         v.findViewById<View>(R.id.logout).setOnClickListener { signOut() }
         v.findViewById<View>(R.id.deleteAccount).setOnClickListener {
             thread { val r = runCatching { ApiClient.deleteAccount() }; activity?.runOnUiThread { r.onSuccess { signOut() }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() } } }

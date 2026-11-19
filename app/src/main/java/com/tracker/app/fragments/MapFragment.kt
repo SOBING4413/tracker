@@ -40,13 +40,13 @@ class MapFragment : Fragment() {
             val dist = me?.let { haversineM(it.lat, it.lng, p.lat, p.lng).toInt() }
             map.overlays.add(Marker(map).apply {
                 position = GeoPoint(p.lat, p.lng); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                title = (if (p.userId in separated) "[Tertinggal] " else "") + p.name + (if (role.isNotEmpty()) " ($role)" else "")
-                snippet = "${p.speed?.let { "%.0f km/h".format(it * 3.6) } ?: "-"}  •  ${p.heading?.let { "%.0f°".format(it) } ?: "-"}  •  ${age}s lalu" + (dist?.let { "  •  $it m" } ?: "")
+                title = (if (p.userId in separated) getString(R.string.map_separated_tag) else "") + p.name + (if (role.isNotEmpty()) " ($role)" else "")
+                snippet = "${p.speed?.let { "%.0f km/h".format(it * 3.6) } ?: "-"}  •  ${p.heading?.let { "%.0f°".format(it) } ?: "-"}  •  ${getString(R.string.map_ago_s, age)}" + (dist?.let { "  •  $it m" } ?: "")
                 if (p.userId == focus) showInfoWindow()
             })
         }
         (focus?.let { TrackerState.positions[it] } ?: me ?: TrackerState.positions.values.firstOrNull())?.let { if (!centered || focus != null) { map.controller.setCenter(GeoPoint(it.lat, it.lng)); centered = true } }
-        info.text = if (separated.isNotEmpty()) "Rider tertinggal: " + separated.joinToString { TrackerState.positions[it]?.name ?: "?" } else "Rombongan menyatu • ${TrackerState.positions.size} online"
+        info.text = if (separated.isNotEmpty()) getString(R.string.map_separated_info, separated.joinToString { TrackerState.positions[it]?.name ?: "?" }) else getString(R.string.map_together, TrackerState.positions.size)
         map.invalidate()
     }
 }

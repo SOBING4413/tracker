@@ -18,6 +18,8 @@ object Prefs {
     var openMic: Boolean get() = sp.getBoolean("open_mic", false); set(v) = sp.edit().putBoolean("open_mic", v).apply()
     /** Always-on mic sensitivity 0..100 (higher = triggers on quieter speech). */
     var voxLevel: Int get() = sp.getInt("vox_level", 50); set(v) = sp.edit().putInt("vox_level", v).apply()
+    /** Language tag chosen in-app: "" = system default, "en", "id". */
+    var lang: String get() = sp.getString("lang", "") ?: ""; set(v) = sp.edit().putString("lang", v).apply()
     var shareLocation: Boolean get() = sp.getBoolean("share", true); set(v) = sp.edit().putBoolean("share", v).apply()
     fun clearSession() = sp.edit().remove("token").remove("uid").remove("uname").remove("gid").apply()
 }

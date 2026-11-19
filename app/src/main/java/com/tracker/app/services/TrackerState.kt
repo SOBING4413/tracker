@@ -19,11 +19,11 @@ object TrackerState {
     var gpsOk = true
     var lastFixTs = 0L
     /** Connection label for the UI; "offline" is only claimed while tracking is actually running. */
-    fun connLabel(): String = when {
-        TrackerService.instance == null -> "Tracking belum dimulai"
-        online -> "Terhubung"
-        else -> "Offline — mencoba menyambung ulang"
-    }
+    fun connLabel(c: android.content.Context): String = c.getString(when {
+        TrackerService.instance == null -> com.tracker.app.R.string.conn_not_started
+        online -> com.tracker.app.R.string.conn_connected
+        else -> com.tracker.app.R.string.conn_reconnecting
+    })
     /** True only for the current Road Captain: gates the captain panel (the server re-checks every request). */
     fun isCaptain(): Boolean { val me = Prefs.userId ?: return false; return group?.captainId == me }
     fun isMuted(): Boolean { val me = Prefs.userId ?: return false; return me in mutedIds }

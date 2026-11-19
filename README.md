@@ -15,3 +15,11 @@ Live GPS group map, group chat, captain-only control panel, automatic "rider lef
 | Instrumented/integration tests | not written |
 
 See `docs/` for installation, architecture, API and permissions. License: Apache-2.0.
+
+## Credits
+
+Made by [SOBING4413](https://github.com/SOBING4413) · [Source](https://github.com/SOBING4413/tracker) · [Discord](https://discord.gg/9nsub2yx4V)
+
+## Languages
+
+English and Bahasa Indonesia (Settings → Language, or the login screen). Strings live in `app/src/main/res/values/strings.xml` (English) and `values-in/strings.xml` (Indonesian).

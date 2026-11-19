@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
+import com.tracker.app.R
 import com.tracker.app.communication.VoiceStreamer
 import com.tracker.app.models.*
 import com.tracker.app.network.ApiClient
@@ -81,7 +82,7 @@ class TrackerService : Service() {
     private fun refreshForeground() {
         var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         if (Build.VERSION.SDK_INT >= 30 && has(Manifest.permission.RECORD_AUDIO)) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        ServiceCompat.startForeground(this, 1, AlertNotifier.foreground(this, "Sharing location with your group"), if (Build.VERSION.SDK_INT >= 29) type else 0)
+        ServiceCompat.startForeground(this, 1, AlertNotifier.foreground(this, s(R.string.notif_sharing)), if (Build.VERSION.SDK_INT >= 29) type else 0)
     }
 
     private fun has(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
@@ -138,7 +139,7 @@ class TrackerService : Service() {
     }
 
     private fun leaveGroupLocally() {
-        android.widget.Toast.makeText(this, "Grup sudah berakhir atau Anda tidak lagi menjadi anggota", android.widget.Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(this, s(R.string.group_ended), android.widget.Toast.LENGTH_LONG).show()
         Prefs.groupId = null; TrackerState.group = null; shutdown()
     }
 
@@ -167,14 +168,14 @@ class TrackerService : Service() {
             "muted" -> {
                 val uid = m.getString("userId")
                 if (m.optBoolean("muted")) TrackerState.mutedIds.add(uid) else TrackerState.mutedIds.remove(uid)
-                if (uid == me) toast(if (m.optBoolean("muted")) "Anda dibisukan oleh Captain (suara & chat)" else "Captain mengaktifkan suara Anda kembali")
+                if (uid == me) toast(if (m.optBoolean("muted")) s(R.string.muted_voice_chat) else s(R.string.unmuted))
                 syncVoiceFlags()
             }
             "group" -> Prefs.groupId?.let { loadGroup(it) }   // roles/members changed: re-fetch (shows or hides the captain panel)
-            "ptt_result" -> if (!m.optBoolean("granted") && m.optBoolean("muted")) toast("Anda dibisukan oleh Captain")
+            "ptt_result" -> if (!m.optBoolean("granted") && m.optBoolean("muted")) toast(s(R.string.muted_by_captain))
             "error" -> when (m.optString("message")) {
-                "too many messages" -> toast("Terlalu cepat, tunggu sebentar")
-                "muted by captain" -> toast("Anda dibisukan oleh Captain")
+                "too many messages" -> toast(s(R.string.too_fast))
+                "muted by captain" -> toast(s(R.string.muted_by_captain))
             }
             "alert" -> {
                 val type = m.getString("type"); val uid = m.getString("userId")
@@ -195,6 +196,8 @@ class TrackerService : Service() {
     }
 
     private fun parseChat(o: JSONObject) = ChatMessage(o.getString("id"), o.getString("userId"), o.optString("name"), o.optString("text"), o.optLong("ts"), o.optBoolean("announce"))
+    /** String in the user-chosen language (Services don't get AppCompat's locale handling). */
+    private fun s(id: Int, vararg a: Any): String = com.tracker.app.utils.LocaleUtil.wrap(this).getString(id, *a)
     private fun toast(s: String) = android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show()
     private fun syncVoiceFlags() {
         iAmMuted = TrackerState.isMuted()
@@ -231,7 +234,7 @@ class TrackerService : Service() {
         return v.isOpenMic
     }
 
-    fun pttDown() { if (voice?.isOpenMic == true) return; if (iAmMuted) { toast("Anda dibisukan oleh Captain"); return }; send(JSONObject().put("t", "ptt_start")); voice?.takeIf { has(Manifest.permission.RECORD_AUDIO) }?.let { it.routeToBluetoothIfAvailable(); it.startTalking() } }
+    fun pttDown() { if (voice?.isOpenMic == true) return; if (iAmMuted) { toast(s(R.string.muted_by_captain)); return }; send(JSONObject().put("t", "ptt_start")); voice?.takeIf { has(Manifest.permission.RECORD_AUDIO) }?.let { it.routeToBluetoothIfAvailable(); it.startTalking() } }
     fun pttUp() { voice?.stopTalking(); send(JSONObject().put("t", "ptt_stop")) }
 
     private fun shutdown() {

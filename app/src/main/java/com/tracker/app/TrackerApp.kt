@@ -14,6 +14,8 @@ class TrackerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Prefs.init(this)
+        // API 33+ persists the per-app language in the system; older versions need it re-applied on every start.
+        if (android.os.Build.VERSION.SDK_INT < 33) com.tracker.app.utils.LocaleUtil.apply(Prefs.lang)
         AlertNotifier.createChannels(this)
         // Token rejected by the server (account/data gone): stop tracking, clear the session, go back to login.
         ApiClient.onUnauthorized = {

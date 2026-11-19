@@ -33,7 +33,7 @@ class TalkFragment : Fragment() {
     @SuppressLint("ClickableViewAccessibility")
     override fun onViewCreated(view: View, s: Bundle?) {
         val tabs = v.findViewById<TabLayout>(R.id.talkTabs)
-        tabs.addTab(tabs.newTab().setText("Suara")); tabs.addTab(tabs.newTab().setText("Chat"))
+        tabs.addTab(tabs.newTab().setText(R.string.tab_voice)); tabs.addTab(tabs.newTab().setText(R.string.tab_chat))
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(t: TabLayout.Tab) { showingChat = t.position == 1; render() }
             override fun onTabUnselected(t: TabLayout.Tab) {}
@@ -46,8 +46,8 @@ class TalkFragment : Fragment() {
             val svc = TrackerService.instance
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (Prefs.openMic) Toast.makeText(context, "Mic selalu aktif: cukup bicara, atau matikan mode itu untuk push-to-talk", Toast.LENGTH_SHORT).show()
-                    else if (svc == null) Toast.makeText(context, "Mulai tracking di tab Group dulu", Toast.LENGTH_SHORT).show()
+                    if (Prefs.openMic) Toast.makeText(context, getString(R.string.talk_toast_open_mic), Toast.LENGTH_SHORT).show()
+                    else if (svc == null) Toast.makeText(context, getString(R.string.talk_toast_start_tracking), Toast.LENGTH_SHORT).show()
                     else Permissions.request(activity as MainActivity, Manifest.permission.RECORD_AUDIO, R.string.perm_mic_why, 20) { b.isPressed = true; svc.pttDown() }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { b.isPressed = false; if (!Prefs.openMic) svc?.pttUp() }
@@ -60,7 +60,7 @@ class TalkFragment : Fragment() {
             if (!on) { Prefs.openMic = false; svc?.setOpenMic(false); render(); return@setOnCheckedChangeListener }
             Permissions.request(activity as MainActivity, Manifest.permission.RECORD_AUDIO, R.string.perm_mic_why, 21) {
                 Prefs.openMic = true
-                if (svc != null && !svc.setOpenMic(true)) { Prefs.openMic = false; Toast.makeText(context, "Mic tidak bisa diaktifkan (sedang dipakai aplikasi lain?)", Toast.LENGTH_LONG).show() }
+                if (svc != null && !svc.setOpenMic(true)) { Prefs.openMic = false; Toast.makeText(context, getString(R.string.talk_toast_mic_fail), Toast.LENGTH_LONG).show() }
                 render()
             }
             render()   // izin belum diberikan / dialog tampil: kembalikan saklar sesuai status sebenarnya
@@ -80,7 +80,7 @@ class TalkFragment : Fragment() {
         v.findViewById<View>(R.id.sos).setOnLongClickListener {   // long-press avoids accidental SOS
             TrackerService.instance?.send(JSONObject().put("t", "sos").put("message", "SOS - butuh bantuan")); Toast.makeText(context, "SOS terkirim", Toast.LENGTH_LONG).show(); true
         }
-        v.findViewById<View>(R.id.sos).setOnClickListener { Toast.makeText(context, "Tahan tombol SOS untuk mengirim", Toast.LENGTH_SHORT).show() }
+        v.findViewById<View>(R.id.sos).setOnClickListener { Toast.makeText(context, getString(R.string.talk_toast_sos), Toast.LENGTH_SHORT).show() }
 
         // ---- chat ----
         val input = v.findViewById<EditText>(R.id.chatInput)
@@ -88,7 +88,7 @@ class TalkFragment : Fragment() {
             val text = input.text.toString().trim()
             if (text.isNotEmpty()) {
                 val svc = TrackerService.instance
-                if (svc == null || !svc.sendChat(text)) Toast.makeText(context, "Belum terhubung ke grup", Toast.LENGTH_SHORT).show()
+                if (svc == null || !svc.sendChat(text)) Toast.makeText(context, getString(R.string.talk_toast_not_connected), Toast.LENGTH_SHORT).show()
                 else input.setText("")
             }
         }
@@ -106,9 +106,9 @@ class TalkFragment : Fragment() {
     }
 
     private fun renderVoice() {
-        v.findViewById<TextView>(R.id.conn).text = TrackerState.connLabel()
+        v.findViewById<TextView>(R.id.conn).text = TrackerState.connLabel(requireContext())
         val h = TrackerState.floorHolder
-        v.findViewById<TextView>(R.id.speaker).text = if (h == null) "Channel idle" else (TrackerState.group?.members?.firstOrNull { it.id == h }?.name ?: "Rider") + " sedang berbicara"
+        v.findViewById<TextView>(R.id.speaker).text = if (h == null) getString(R.string.talk_idle) else getString(R.string.talk_speaking, TrackerState.group?.members?.firstOrNull { it.id == h }?.name ?: getString(R.string.rider))
         val open = Prefs.openMic
         binding = true
         v.findViewById<Switch>(R.id.openMic).isChecked = open
@@ -116,13 +116,13 @@ class TalkFragment : Fragment() {
         v.findViewById<View>(R.id.voxRow).visibility = if (open) View.VISIBLE else View.GONE
         v.findViewById<Button>(R.id.ptt).apply {
             isEnabled = !open
-            text = if (open) "MIC AKTIF\nbicara saja" else "TAHAN\nUNTUK BICARA"
+            text = getString(if (open) R.string.talk_mic_active else R.string.talk_ptt)
         }
         v.findViewById<TextView>(R.id.openMicHint).text = when {
-            TrackerState.isMuted() -> "Anda dibisukan oleh Captain: suara dan chat dinonaktifkan."
-            open && TrackerService.instance == null -> "Mic selalu aktif akan jalan setelah tracking dimulai."
-            open -> "Mic mendeteksi suara Anda dan memancar otomatis. Hanya satu orang bisa bicara sekaligus; Captain bisa memotong. Turunkan sensitivitas jika terpicu angin/mesin."
-            else -> "Mode push-to-talk: tahan tombol untuk bicara."
+            TrackerState.isMuted() -> getString(R.string.talk_hint_muted)
+            open && TrackerService.instance == null -> getString(R.string.talk_hint_open_wait)
+            open -> getString(R.string.talk_hint_open)
+            else -> getString(R.string.talk_hint_ptt)
         }
     }
 
@@ -136,7 +136,7 @@ class TalkFragment : Fragment() {
         if (list.size == renderedCount && list.lastOrNull()?.id == renderedLastId) return   // nothing new
         renderedCount = list.size; renderedLastId = list.lastOrNull()?.id
         val box = v.findViewById<LinearLayout>(R.id.chatList); box.removeAllViews()
-        if (list.isEmpty()) box.addView(TextView(requireContext()).apply { text = "Belum ada pesan. Tulis sesuatu untuk grup."; setTextColor(resources.getColor(R.color.text_secondary, null)) })
+        if (list.isEmpty()) box.addView(TextView(requireContext()).apply { text = getString(R.string.chat_empty); setTextColor(resources.getColor(R.color.text_secondary, null)) })
         list.forEach { box.addView(bubble(it)) }
         val sv = v.findViewById<ScrollView>(R.id.chatScroll); sv.post { sv.fullScroll(View.FOCUS_DOWN) }
     }
@@ -145,7 +145,7 @@ class TalkFragment : Fragment() {
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     private fun bubble(m: ChatMessage): View {
         val mine = m.userId == Prefs.userId
-        val head = when { m.announce -> "PENGUMUMAN · ${m.name}"; mine -> "Anda"; else -> m.name }
+        val head = when { m.announce -> getString(R.string.announcement_head, m.name); mine -> getString(R.string.you); else -> m.name }
         return TextView(requireContext()).apply {
             text = "$head  ${timeFmt.format(Date(m.ts))}\n${m.text}"
             textSize = 15f; setPadding(dp(12), dp(8), dp(12), dp(8))

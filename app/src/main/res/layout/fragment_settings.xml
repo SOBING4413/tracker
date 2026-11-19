@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="16dp">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Interval GPS" android:textColor="@color/text_secondary"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_gps_interval" android:textColor="@color/text_secondary"/>
         <Spinner android:id="@+id/gpsInterval" android:layout_width="match_parent" android:layout_height="48dp"/>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Batas jarak peringatan (dikelola Road Captain)" android:textColor="@color/text_secondary" android:layout_marginTop="12dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/settings_threshold" android:textColor="@color/text_secondary" android:layout_marginTop="12dp"/>
         <Spinner android:id="@+id/threshold" android:layout_width="match_parent" android:layout_height="48dp"/>
-        <Switch android:id="@+id/sound" android:layout_width="match_parent" android:layout_height="48dp" android:text="Suara peringatan" android:textColor="@color/text_primary"/>
-        <Switch android:id="@+id/vibrate" android:layout_width="match_parent" android:layout_height="48dp" android:text="Getaran" android:textColor="@color/text_primary"/>
-        <Switch android:id="@+id/share" android:layout_width="match_parent" android:layout_height="48dp" android:text="Bagikan lokasi ke grup" android:textColor="@color/text_primary"/>
-        <Button android:id="@+id/logout" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Keluar" android:layout_marginTop="16dp"/>
-        <Button android:id="@+id/deleteAccount" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Hapus akun &amp; data saya" android:textColor="@color/danger"/>
+        <Switch android:id="@+id/sound" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/settings_sound" android:textColor="@color/text_primary"/>
+        <Switch android:id="@+id/vibrate" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/settings_vibrate" android:textColor="@color/text_primary"/>
+        <Switch android:id="@+id/share" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/settings_share" android:textColor="@color/text_primary"/>
+        <Button android:id="@+id/language" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp"/>
+        <Button android:id="@+id/logout" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/settings_logout" android:layout_marginTop="8dp"/>
+        <Button android:id="@+id/credits" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/settings_credits" android:layout_marginTop="8dp"/>
+        <Button android:id="@+id/deleteAccount" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/settings_delete" android:textColor="@color/danger"/>
     </LinearLayout>
 </ScrollView>

@@ -6,6 +6,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.tracker.app.R
 import com.tracker.app.network.ApiClient
+import com.tracker.app.utils.LocaleUtil
 import kotlin.concurrent.thread
 
 class LoginActivity : AppCompatActivity() {
@@ -16,15 +17,16 @@ class LoginActivity : AppCompatActivity() {
         fun go(register: Boolean) {
             err.text = ""
             val e = email.text.toString().trim(); val p = pw.text.toString(); val n = name.text.toString().trim()
-            if (register && n.isEmpty()) { err.text = "Enter a display name to register"; return }
+            if (register && n.isEmpty()) { err.text = getString(R.string.login_need_name); return }
             thread {
                 val result = runCatching { if (register) ApiClient.register(e, p, n) else ApiClient.login(e, p) }
                 runOnUiThread {
                     result.onSuccess { startActivity(Intent(this, MainActivity::class.java)); finish() }
-                        .onFailure { err.text = it.message ?: "Network error" }
+                        .onFailure { err.text = it.message ?: getString(R.string.login_network_error) }
                 }
             }
         }
+        findViewById<Button>(R.id.btnLanguage).apply { text = getString(R.string.settings_language_fmt, LocaleUtil.currentLabel(this@LoginActivity)); setOnClickListener { LocaleUtil.showPicker(this@LoginActivity) } }
         findViewById<Button>(R.id.btnLogin).setOnClickListener { go(false) }
         findViewById<Button>(R.id.btnRegister).setOnClickListener { go(true) }
     }

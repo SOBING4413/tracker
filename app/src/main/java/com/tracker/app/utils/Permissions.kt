@@ -21,15 +21,15 @@ object Permissions {
         val permanentlyDenied = !ActivityCompat.shouldShowRequestPermissionRationale(a, perm) && a.getPreferences(0).getBoolean("asked_$perm", false)
         if (permanentlyDenied) {
             AlertDialog.Builder(a).setMessage(R.string.perm_denied_settings)
-                .setPositiveButton("Settings") { _, _ ->
+                .setPositiveButton(R.string.perm_settings) { _, _ ->
                     a.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${a.packageName}")))
-                }.setNegativeButton("Cancel", null).show()
+                }.setNegativeButton(android.R.string.cancel, null).show()
             return
         }
-        AlertDialog.Builder(a).setMessage(whyRes).setPositiveButton("Continue") { _, _ ->
+        AlertDialog.Builder(a).setMessage(whyRes).setPositiveButton(R.string.perm_continue) { _, _ ->
             a.getPreferences(0).edit().putBoolean("asked_$perm", true).apply()
             ActivityCompat.requestPermissions(a, arrayOf(perm), code)
-        }.setNegativeButton("Not now", null).show()
+        }.setNegativeButton(R.string.perm_not_now, null).show()
     }
 
     fun requestLocationFlow(a: AppCompatActivity, onReady: () -> Unit) =
