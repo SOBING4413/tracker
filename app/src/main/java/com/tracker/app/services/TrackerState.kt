@@ -11,6 +11,12 @@ object TrackerState {
     var floorHolder: String? = null
     var gpsOk = true
     var lastFixTs = 0L
+    /** Connection label for the UI; "offline" is only claimed while tracking is actually running. */
+    fun connLabel(): String = when {
+        TrackerService.instance == null -> "Tracking belum dimulai"
+        online -> "Terhubung"
+        else -> "Offline — mencoba menyambung ulang"
+    }
     private val listeners = HashSet<() -> Unit>()
     fun listen(l: () -> Unit) { listeners.add(l) }
     fun unlisten(l: () -> Unit) { listeners.remove(l) }

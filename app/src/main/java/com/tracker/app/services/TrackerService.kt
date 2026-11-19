@@ -30,6 +30,9 @@ class TrackerService : Service() {
     private lateinit var fused: FusedLocationProviderClient
     private var voice: VoiceStreamer? = null
     private var callback: LocationCallback? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    // Short network blips shouldn't flash "offline" in the UI: only report offline if it lasts > 3 s.
+    private val markOffline = Runnable { TrackerState.online = false; TrackerState.notifyChanged() }
     val streamer get() = voice
 
     override fun onBind(i: Intent?): IBinder? = null
@@ -52,7 +55,10 @@ class TrackerService : Service() {
         if (rt != null) return
         thread { runCatching { ApiClient.getGroup(gid) }.onSuccess { g -> android.os.Handler(mainLooper).post { TrackerState.group = g; TrackerState.notifyChanged() } } }
         voice = VoiceStreamer(this) { rt?.sendBytes(it) ?: false }
-        rt = RealtimeClient(gid, ::onMessage, { on -> TrackerState.online = on; TrackerState.notifyChanged() }, { voice?.play(it) }).also { it.start() }
+        rt = RealtimeClient(applicationContext, gid, ::onMessage, { on ->
+            main.removeCallbacks(markOffline)
+            if (on) { TrackerState.online = true; TrackerState.notifyChanged() } else main.postDelayed(markOffline, 3_000)
+        }, { voice?.play(it) }).also { it.start() }
         startLocation()
     }
 
@@ -116,7 +122,7 @@ class TrackerService : Service() {
     fun pttUp() { voice?.stopTalking(); send(JSONObject().put("t", "ptt_stop")) }
 
     private fun shutdown() {
-        callback?.let { fused.removeLocationUpdates(it) }; rt?.stop(); rt = null; voice?.release(); TrackerState.reset(); TrackerState.notifyChanged()
+        main.removeCallbacks(markOffline); callback?.let { fused.removeLocationUpdates(it) }; rt?.stop(); rt = null; voice?.release(); TrackerState.reset(); TrackerState.notifyChanged()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE); stopSelf()
     }
     override fun onDestroy() { instance = null; super.onDestroy() }

@@ -19,12 +19,17 @@ class Hub {
 
   join(group, user, client) {
     if (!group.members.has(user.id)) throw new Error('forbidden');
-    const r = this.room(group); r.clients.set(user.id, client);
+    const r = this.room(group);
+    const old = r.clients.get(user.id);
+    r.clients.set(user.id, client);
+    if (old && old !== client) old.close?.();   // same user reconnecting: drop the stale (half-open) socket
     this.broadcast(r, { t: 'presence', userId: user.id, online: true }, user.id);
     client.send({ t: 'snapshot', positions: [...r.pos.values()], floor: r.floor });
   }
-  leave(group, userId) {
+  /** `client` = the connection that closed; if the user already reconnected with a newer one, do nothing. */
+  leave(group, userId, client) {
     const r = this.rooms.get(group.id); if (!r) return;
+    if (client && r.clients.get(userId) !== client) return;
     r.clients.delete(userId);
     if (r.floor?.userId === userId) { r.floor = null; this.broadcast(r, { t: 'floor', userId: null }); }
     this.broadcast(r, { t: 'presence', userId, online: false });

@@ -8,9 +8,18 @@ function attachWebSocket(server, store, hub) {
   const wss = new WebSocketServer({ server, path: '/ws' });
   wss.on('connection', (ws, req) => {
     const q = new URL(req.url, 'http://x').searchParams;
-    let user, group;
-    try { user = store.users.get(jwt.verify(q.get('token') || '', cfg.jwtSecret).sub); group = store.groups.get(q.get('group')); hub.join(group, user, { send: (m) => ws.readyState === 1 && ws.send(JSON.stringify(m)), sendBinary: (b) => ws.readyState === 1 && ws.send(b, { binary: true }) }); }
+    let user, group, client;
+    try {
+      user = store.users.get(jwt.verify(q.get('token') || '', cfg.jwtSecret).sub); group = store.groups.get(q.get('group'));
+      client = {
+        send: (m) => ws.readyState === 1 && ws.send(JSON.stringify(m)),
+        sendBinary: (b) => ws.readyState === 1 && ws.send(b, { binary: true }),
+        close: () => ws.close(4000, 'replaced'),
+      };
+      hub.join(group, user, client);
+    }
     catch { return ws.close(4003, 'forbidden'); }
+    ws.on('error', () => {}); // a bad frame must never crash the process (that drops every client at once)
     ws.isAlive = true; ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (raw, isBinary) => {
       if (isBinary) { if (raw.length <= 8192) hub.audio(group, user.id, raw); return; }
@@ -28,7 +37,7 @@ function attachWebSocket(server, store, hub) {
         }
       } catch (e) { ws.send(JSON.stringify({ t: 'error', message: e.message })); }
     });
-    ws.on('close', () => hub.leave(group, user.id));
+    ws.on('close', () => hub.leave(group, user.id, client));
   });
   const iv = setInterval(() => wss.clients.forEach((c) => { if (!c.isAlive) return c.terminate(); c.isAlive = false; c.ping(); }), 15000);
   wss.on('close', () => clearInterval(iv));

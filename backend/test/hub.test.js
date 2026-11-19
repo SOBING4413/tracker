@@ -70,3 +70,16 @@ test('audio frames relay only from floor holder to others', () => {
   assert.equal(s.hub.audio(s.g, s.budi.id, Buffer.from([1, 2])), true);
   assert.equal(got.length, 1);
 });
+
+test('stale socket closing after a reconnect does not evict the new connection', () => {
+  const s = setup(); const got = []; let closedOld = false;
+  const oldC = s.hub.room(s.g).clients.get(s.budi.id); oldC.close = () => { closedOld = true; };
+  const newC = { send: (m) => got.push(m) };
+  s.hub.join(s.g, s.budi, newC);
+  assert.equal(closedOld, true);
+  s.hub.leave(s.g, s.budi.id, oldC);                       // late close event of the old socket
+  assert.equal(s.hub.room(s.g).clients.get(s.budi.id), newC);
+  assert.ok(!s.inbox.cap.some((m) => m.t === 'presence' && m.online === false));
+  s.hub.leave(s.g, s.budi.id, newC);                       // real disconnect
+  assert.ok(s.inbox.cap.some((m) => m.t === 'presence' && m.online === false));
+});

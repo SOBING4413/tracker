@@ -58,7 +58,7 @@ class GroupFragment : Fragment() {
     private fun render() {
         if (!isAdded) return
         val g = TrackerState.group
-        v.findViewById<TextView>(R.id.status).text = "GPS: ${if (TrackerState.gpsOk) "OK" else "tidak tersedia"}  •  Koneksi: ${if (TrackerState.online) "online" else "offline"}"
+        v.findViewById<TextView>(R.id.status).text = "GPS: ${if (TrackerState.gpsOk) "OK" else "tidak tersedia"}  •  Koneksi: ${if (TrackerService.instance == null) "tidak aktif" else if (TrackerState.online) "online" else "offline"}"
         val has = g != null
         v.findViewById<View>(R.id.btnCreate).visibility = if (has) View.GONE else View.VISIBLE
         v.findViewById<View>(R.id.btnJoin).visibility = if (has) View.GONE else View.VISIBLE
