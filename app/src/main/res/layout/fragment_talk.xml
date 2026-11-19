@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_horizontal" android:padding="16dp">
+    <TextView android:id="@+id/conn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary"/>
+    <TextView android:id="@+id/speaker" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/ok_green" android:textSize="20sp" android:layout_marginTop="12dp" android:text="Channel idle"/>
+    <Button android:id="@+id/ptt" android:layout_width="240dp" android:layout_height="240dp" android:layout_marginTop="32dp" android:text="TAHAN\nUNTUK BICARA" android:textSize="20sp" android:textStyle="bold"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="24dp">
+        <ToggleButton android:id="@+id/mute" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textOn="Muted" android:textOff="Mute"/>
+        <SeekBar android:id="@+id/volume" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="100"/>
+    </LinearLayout>
+    <Button android:id="@+id/sos" android:layout_width="match_parent" android:layout_height="64dp" android:text="SOS" android:backgroundTint="@color/danger" android:layout_marginTop="24dp"/>
+</LinearLayout>

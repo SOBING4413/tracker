@@ -1,0 +1,6 @@
+# Architecture
+- **Android (Kotlin, minSdk 24 / targetSdk 34)**: `TrackerService` (foreground, location|microphone) owns GPS (FusedLocation), the `RealtimeClient` WebSocket (auto-reconnect, backoff) and alert notifications. UI reads `TrackerState`.
+- **Backend (Node)**: REST (`controllers/api.js`) for auth/groups; WebSocket (`websocket/`) for presence, location, alerts, SOS, PTT. `services/hub.js` is transport-agnostic and unit-tested.
+- **Straggler detection** (`alertEngine.js`): main group = members chained from the Road Captain by hops ≤ threshold (largest cluster if the captain is offline). Others are "separated", distance = to nearest main member. Hysteresis: rejoin only within 90% of the threshold. Stale (>60 s) members ignored. Repeat notifications on an interval until acknowledged. Thresholds: 500/1100/1500/2000 m (default 1100).
+- **Voice (PTT)**: server-side floor control (one speaker; captain pre-empts). Audio is 8 kHz PCM16 relayed over the WebSocket (works, but bandwidth-heavy and not WebRTC). Planned: Opus encoding, then WebRTC with a TURN server.
+- **Privacy**: all data is scoped to group members; users can pause sharing and delete their account; history purged after `HISTORY_RETENTION_DAYS`.

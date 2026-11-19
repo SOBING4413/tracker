@@ -1,0 +1,22 @@
+name: build
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cd backend && npm install && npm test
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: 8.7 }
+      - run: gradle testDebugUnitTest assembleDebug -PtrackerBaseUrl=${{ vars.TRACKER_BASE_URL || 'http://10.0.2.2:8080' }}
+      - run: mv app/build/outputs/apk/debug/app-debug.apk tracker.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: tracker-apk, path: tracker.apk }

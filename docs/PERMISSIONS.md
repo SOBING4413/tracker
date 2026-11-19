@@ -1,0 +1,2 @@
+# Permissions
+Location (fine) – map and distance; background location – tracking with screen off (requested separately after foreground, Android 10+); notifications (13+); microphone – only while PTT is held; foreground-service location/microphone; full-screen intent – call-like alert where allowed; VIBRATE/WAKE_LOCK; BLUETOOTH_CONNECT – headset routing (declared; runtime request flow still TODO). Each is requested at point of use with a rationale; after permanent denial the app offers to open system Settings.
