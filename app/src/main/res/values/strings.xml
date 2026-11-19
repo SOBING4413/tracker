@@ -2,7 +2,7 @@
     <string name="app_name">TRACKER</string>
     <string name="perm_location_why">TRACKER needs your location to show you on the map and detect if you fall behind the group.</string>
     <string name="perm_bg_why">Choose “Allow all the time” so tracking continues while your phone is in your pocket.</string>
-    <string name="perm_mic_why">The microphone is used only while you hold the Push-to-Talk button.</string>
+    <string name="perm_mic_why">The microphone is used while you hold the Push-to-Talk button, or continuously while you have Always-on mic turned on.</string>
     <string name="perm_notif_why">Notifications warn you when a rider is left behind or someone sends SOS.</string>
     <string name="perm_denied_settings">Permission denied. Open Settings to enable it.</string>
 </resources>

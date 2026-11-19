@@ -47,6 +47,9 @@ function buildApi(store, hub) {
   const member = (req, res) => { const g = store.groups.get(req.params.id); if (!g || !g.members.has(req.user.id)) { res.status(403).json({ error: 'forbidden' }); return null; } return g; };
   const captainOnly = (g, req, res) => { if (g.ownerId !== req.user.id && g.captainId !== req.user.id) { res.status(403).json({ error: 'captain or owner only' }); return false; } return true; };
 
+  // Captain panel: strictly the current Road Captain (not merely the owner).
+  const strictCaptain = (g, req, res) => { if (g.captainId !== req.user.id) { res.status(403).json({ error: 'captain only' }); return false; } return true; };
+
   api.get('/me', (req, res) => res.json(pub(req.user)));
   api.delete('/me', (req, res) => { store.deleteUser(req.user.id); hub.dropUserEverywhere(req.user.id); res.status(204).end(); });
   api.post('/groups', (req, res) => {
@@ -58,7 +61,7 @@ function buildApi(store, hub) {
     if (joinLimit.hit(req.user.id)) return tooMany(res);   // invite codes must not be brute-forceable
     const p = v.parseCode(req.body); if (p.error) return res.status(404).json({ error: p.error });
     const g = store.groupByCode(p.value); if (!g) return res.status(404).json({ error: 'invalid code' });
-    g.members.add(req.user.id); res.json(groupDto(g, store));
+    store.addMember(g, req.user.id); hub.notifyGroupChanged(g); res.json(groupDto(g, store));
   });
   api.get('/groups/:id', (req, res) => { const g = member(req, res); if (g) res.json(groupDto(g, store)); });
   api.patch('/groups/:id', (req, res) => {
@@ -67,6 +70,7 @@ function buildApi(store, hub) {
     if (captainId !== undefined) { if (!g.members.has(captainId)) return res.status(400).json({ error: 'not a member' }); g.captainId = captainId; }
     if (sweeperId !== undefined) { if (sweeperId !== null && !g.members.has(sweeperId)) return res.status(400).json({ error: 'not a member' }); g.sweeperId = sweeperId; }
     if (thresholdM !== undefined) { if (!ALLOWED_THRESHOLDS_M.includes(thresholdM)) return res.status(400).json({ error: 'thresholdM must be one of ' + ALLOWED_THRESHOLDS_M }); g.thresholdM = thresholdM; }
+    hub.notifyGroupChanged(g);   // captain / sweeper / threshold changed: every app re-fetches the group
     res.json(groupDto(g, store));
   });
   api.delete('/groups/:id/members/:uid', (req, res) => {
@@ -74,12 +78,27 @@ function buildApi(store, hub) {
     if (req.params.uid !== req.user.id && !captainOnly(g, req, res)) return;
     store.removeMember(g, req.params.uid);
     hub.dropUser(g, req.params.uid);   // a removed rider must stop receiving locations immediately
+    hub.notifyGroupChanged(g);
     res.status(204).end();
   });
   api.post('/groups/:id/end', (req, res) => {
     const g = member(req, res); if (!g || !captainOnly(g, req, res)) return;
     g.active = false; g.endedAt = Date.now(); hub.closeGroup(g);
     res.json(groupDto(g, store));
+  });
+  api.get('/groups/:id/admin', (req, res) => {
+    const g = member(req, res); if (!g || !strictCaptain(g, req, res)) return;
+    const members = hub.adminView(g);
+    res.json({ group: groupDto(g, store), members, onlineCount: members.filter((m) => m.online).length, serverTime: Date.now() });
+  });
+  api.post('/groups/:id/admin/mute', (req, res) => {
+    const g = member(req, res); if (!g || !strictCaptain(g, req, res)) return;
+    const uid = v.str(req.body?.userId, 64); const muted = req.body?.muted;
+    if (!uid || typeof muted !== 'boolean') return res.status(400).json({ error: 'userId and muted(boolean) required' });
+    if (!g.members.has(uid)) return res.status(400).json({ error: 'not a member' });
+    if (uid === g.captainId) return res.status(400).json({ error: 'cannot mute the captain' });
+    hub.setMuted(g, uid, muted);
+    res.json({ members: hub.adminView(g) });
   });
   api.get('/groups/:id/history', (req, res) => { const g = member(req, res); if (!g) return; res.json({ points: store.history.filter((h) => h.groupId === g.id).slice(-5000), alerts: store.alerts.filter((a) => a.groupId === g.id).slice(-200) }); });
 

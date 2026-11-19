@@ -34,6 +34,7 @@
         </activity>
         <activity android:name=".activities.LoginActivity" android:exported="false" />
         <activity android:name=".activities.MainActivity" android:exported="false" android:launchMode="singleTask" />
+        <activity android:name=".activities.CaptainPanelActivity" android:exported="false" />
         <activity android:name=".activities.AlertActivity" android:exported="false"
             android:showWhenLocked="true" android:turnScreenOn="true" android:launchMode="singleTop" />
         <receiver android:name=".notifications.AckReceiver" android:exported="false"><intent-filter><action android:name="com.tracker.app.ACK" /></intent-filter></receiver>

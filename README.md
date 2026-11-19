@@ -1,9 +1,10 @@
 # TRACKER — motorcycle group tracker & push-to-talk
-Live GPS group map, automatic "rider left behind" alerts (default > 1.1 km, hysteresis), SOS, and push-to-talk for touring groups.
+Live GPS group map, group chat, captain-only control panel, automatic "rider left behind" alerts (default > 1.1 km, hysteresis), SOS, and push-to-talk for touring groups.
 
 ## Status (honest)
 | Area | State |
 |---|---|
+| Captain panel (members + details, mute, sweeper/captain, kick, announce), group chat, always-on mic | implemented (backend: 36 unit tests pass + smoke-tested over HTTP/WebSocket); **Android UI not compiled or run** |
 | Alert engine (backend) | implemented, 10 unit tests pass |
 | Hub: presence, location, alerts, SOS, PTT floor, audio relay | implemented, 7 unit tests pass |
 | REST/WebSocket server, schema.sql | written; **not yet run** (deps not installable in authoring env) |

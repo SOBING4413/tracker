@@ -23,8 +23,18 @@ CREATE TABLE group_members (
   group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  muted BOOLEAN NOT NULL DEFAULT false,   -- muted by the Road Captain (no voice, no chat)
   PRIMARY KEY (group_id, user_id)
 );
+CREATE TABLE chat_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,   -- deleting an account removes its messages
+  body TEXT NOT NULL CHECK (char_length(body) <= 500),
+  announce BOOLEAN NOT NULL DEFAULT false,                        -- captain announcement
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ON chat_messages (group_id, created_at);
 CREATE TABLE location_history (
   id BIGSERIAL PRIMARY KEY,
   group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,

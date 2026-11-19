@@ -13,13 +13,14 @@ import com.tracker.app.activities.MainActivity
 import com.tracker.app.utils.Prefs
 
 object AlertNotifier {
-    const val CH_TRACKING = "tracking"; const val CH_ALERT = "alert"; const val CH_SOS = "sos"
+    const val CH_TRACKING = "tracking"; const val CH_ALERT = "alert"; const val CH_SOS = "sos"; const val CH_CHAT = "chat"
     const val ACTION_ACK = "com.tracker.app.ACK"
 
     fun createChannels(c: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = c.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH_TRACKING, "Tracking", NotificationManager.IMPORTANCE_LOW))
+        nm.createNotificationChannel(NotificationChannel(CH_CHAT, "Chat grup", NotificationManager.IMPORTANCE_DEFAULT))
         val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
         // Custom TRACKER ringtone: drop res/raw/tracker_ring.ogg and it is picked up; otherwise the system ringtone is used.
         val resId = c.resources.getIdentifier("tracker_ring", "raw", c.packageName)
@@ -35,6 +36,16 @@ object AlertNotifier {
         NotificationCompat.Builder(c, CH_TRACKING).setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle("TRACKER active").setContentText(text).setOngoing(true)
             .setContentIntent(PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)).build()
+
+    /** New chat message while the app is not on screen. Tapping it opens the Chat tab. */
+    fun chat(c: Context, name: String, text: String, announce: Boolean) {
+        val open = PendingIntent.getActivity(c, 900, Intent(c, MainActivity::class.java).putExtra("openChat", true), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val b = NotificationCompat.Builder(c, CH_CHAT).setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setContentTitle(if (announce) "Pengumuman Captain" else name).setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text)).setAutoCancel(true).setContentIntent(open)
+            .setPriority(if (announce) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+        c.getSystemService(NotificationManager::class.java).notify(900, b.build())
+    }
 
     /** Incoming-call style alert. Uses a full-screen intent where Android permits; otherwise heads-up. No real phone call is placed. */
     fun straggler(c: Context, id: Int, name: String, distanceM: Int, userId: String, sos: Boolean = false, message: String? = null) {

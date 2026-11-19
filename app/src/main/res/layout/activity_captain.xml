@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/bg_dark">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+        <Button android:id="@+id/btnBack" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="←"/>
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Panel Captain" android:textColor="@color/text_primary" android:textSize="20sp" android:textStyle="bold"/>
+        <Button android:id="@+id/btnAnnounce" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Umumkan"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp" android:textColor="@color/text_secondary"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="16dp" android:layout_marginTop="8dp" android:text="Batas jarak peringatan" android:textColor="@color/text_secondary"/>
+    <Spinner android:id="@+id/threshold" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginStart="8dp" android:layout_marginEnd="8dp"/>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:id="@+id/memberList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp"/>
+    </ScrollView>
+</LinearLayout>

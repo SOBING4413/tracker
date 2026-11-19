@@ -8,6 +8,7 @@
         <LinearLayout android:id="@+id/members" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
         <Button android:id="@+id/btnShare" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Bagikan kode grup" android:visibility="gone"/>
         <Button android:id="@+id/btnTrack" android:layout_width="match_parent" android:layout_height="60dp" android:text="Mulai tracking" android:visibility="gone" android:layout_marginTop="8dp"/>
+        <Button android:id="@+id/btnCaptain" android:layout_width="match_parent" android:layout_height="60dp" android:text="Panel Captain" android:visibility="gone" android:layout_marginTop="8dp"/>
         <Button android:id="@+id/btnEnd" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Akhiri sesi touring" android:visibility="gone"/>
     </LinearLayout>
 </ScrollView>

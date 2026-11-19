@@ -37,6 +37,7 @@ function attachWebSocket(server, store, hub) {
           case 'ptt_stop': hub.pttRelease(group, user.id); break;
           case 'signal': hub.signal(group, user.id, m.to, m.payload); break;
           case 'ack': hub.ackAlert(group, user.id, m.userId); break;
+          case 'chat': hub.chat(group, user, m.text, m.announce); break;
           case 'sos': hub.sos(group, user, m.message); break;
           case 'ping': ws.send('{"t":"pong"}'); break;
         }

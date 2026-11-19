@@ -7,6 +7,7 @@ import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.tracker.app.R
+import com.tracker.app.activities.CaptainPanelActivity
 import com.tracker.app.activities.MainActivity
 import com.tracker.app.models.Group
 import com.tracker.app.network.ApiClient
@@ -33,6 +34,9 @@ class GroupFragment : Fragment() {
             if (TrackerService.instance != null) { act.startService(Intent(act, TrackerService::class.java).setAction(TrackerService.ACTION_STOP)) }
             else Permissions.requestLocationFlow(act) { androidx.core.content.ContextCompat.startForegroundService(act, Intent(act, TrackerService::class.java).setAction(TrackerService.ACTION_START)) }
             v.postDelayed({ render() }, 400)
+        }
+        v.findViewById<Button>(R.id.btnCaptain).setOnClickListener {
+            if (TrackerState.isCaptain()) startActivity(Intent(requireContext(), CaptainPanelActivity::class.java))
         }
         v.findViewById<Button>(R.id.btnEnd).setOnClickListener {
             val g = TrackerState.group ?: return@setOnClickListener
@@ -63,6 +67,8 @@ class GroupFragment : Fragment() {
         v.findViewById<View>(R.id.btnCreate).visibility = if (has) View.GONE else View.VISIBLE
         v.findViewById<View>(R.id.btnJoin).visibility = if (has) View.GONE else View.VISIBLE
         listOf(R.id.btnShare, R.id.btnTrack, R.id.btnEnd).forEach { v.findViewById<View>(it).visibility = if (has) View.VISIBLE else View.GONE }
+        // The captain panel exists only for the current Road Captain (and the server re-checks every request).
+        v.findViewById<View>(R.id.btnCaptain).visibility = if (has && TrackerState.isCaptain()) View.VISIBLE else View.GONE
         v.findViewById<Button>(R.id.btnTrack).text = if (TrackerService.instance != null) "Hentikan tracking" else "Mulai tracking"
         val box = v.findViewById<LinearLayout>(R.id.members); box.removeAllViews()
         if (g == null) { v.findViewById<TextView>(R.id.groupInfo).text = "Belum ada grup"; return }

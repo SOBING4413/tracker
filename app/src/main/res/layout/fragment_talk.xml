@@ -1,11 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_horizontal" android:padding="16dp">
-    <TextView android:id="@+id/conn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary"/>
-    <TextView android:id="@+id/speaker" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/ok_green" android:textSize="20sp" android:layout_marginTop="12dp" android:text="Channel idle"/>
-    <Button android:id="@+id/ptt" android:layout_width="240dp" android:layout_height="240dp" android:layout_marginTop="32dp" android:text="TAHAN\nUNTUK BICARA" android:textSize="20sp" android:textStyle="bold"/>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="24dp">
-        <ToggleButton android:id="@+id/mute" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textOn="Muted" android:textOff="Mute"/>
-        <SeekBar android:id="@+id/volume" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="100"/>
-    </LinearLayout>
-    <Button android:id="@+id/sos" android:layout_width="match_parent" android:layout_height="64dp" android:text="SOS" android:backgroundTint="@color/danger" android:layout_marginTop="24dp"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+
+    <com.google.android.material.tabs.TabLayout android:id="@+id/talkTabs" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/surface_dark" app:tabTextColor="@color/text_secondary" app:tabSelectedTextColor="@color/accent" app:tabIndicatorColor="@color/accent"
+        xmlns:app="http://schemas.android.com/apk/res-auto"/>
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+
+        <!-- Voice -->
+        <ScrollView android:id="@+id/voicePane" android:layout_width="match_parent" android:layout_height="match_parent">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:padding="16dp">
+                <TextView android:id="@+id/conn" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/text_secondary"/>
+                <TextView android:id="@+id/speaker" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/ok_green" android:textSize="20sp" android:layout_marginTop="12dp" android:text="Channel idle"/>
+                <Button android:id="@+id/ptt" android:layout_width="220dp" android:layout_height="220dp" android:layout_marginTop="24dp" android:text="TAHAN\nUNTUK BICARA" android:textSize="20sp" android:textStyle="bold"/>
+
+                <Switch android:id="@+id/openMic" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="16dp" android:text="Mic selalu aktif (bicara otomatis)" android:textColor="@color/text_primary"/>
+                <TextView android:id="@+id/openMicHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/text_secondary" android:textSize="12sp"
+                    android:text="Mode push-to-talk: tahan tombol untuk bicara."/>
+                <LinearLayout android:id="@+id/voxRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sensitivitas mic" android:textColor="@color/text_secondary"/>
+                    <SeekBar android:id="@+id/vox" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="50"/>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="16dp">
+                    <ToggleButton android:id="@+id/mute" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textOn="Muted" android:textOff="Mute"/>
+                    <SeekBar android:id="@+id/volume" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="100"/>
+                </LinearLayout>
+                <Button android:id="@+id/sos" android:layout_width="match_parent" android:layout_height="64dp" android:text="SOS" android:backgroundTint="@color/danger" android:layout_marginTop="24dp"/>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- Chat -->
+        <LinearLayout android:id="@+id/chatPane" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone">
+            <ScrollView android:id="@+id/chatScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+                <LinearLayout android:id="@+id/chatList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp"/>
+            </ScrollView>
+            <TextView android:id="@+id/chatMuted" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:gravity="center"
+                android:textColor="@color/danger" android:text="Anda dibisukan oleh Captain" android:visibility="gone"/>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+                <EditText android:id="@+id/chatInput" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:hint="Tulis pesan…"
+                    android:maxLength="500" android:maxLines="3" android:inputType="textCapSentences|textMultiLine" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary"/>
+                <Button android:id="@+id/chatSend" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Kirim" android:layout_marginStart="8dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

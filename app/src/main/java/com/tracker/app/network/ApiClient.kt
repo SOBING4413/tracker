@@ -49,6 +49,21 @@ object ApiClient {
     fun patchGroup(id: String, patch: JSONObject) = parseGroup(call("PATCH", "/groups/$id", patch)!!)
     fun kick(groupId: String, userId: String) { call("DELETE", "/groups/$groupId/members/$userId") }
     fun endGroup(id: String) { call("POST", "/groups/$id/end") }
+    /** Road Captain panel data. 403 = the caller is not the current captain. */
+    fun getAdmin(id: String): AdminView {
+        val o = call("GET", "/groups/$id/admin")!!
+        return AdminView(parseAdminMembers(o.getJSONArray("members")), o.optInt("onlineCount"))
+    }
+    fun muteMember(groupId: String, userId: String, muted: Boolean): List<AdminMember> =
+        parseAdminMembers(call("POST", "/groups/$groupId/admin/mute", JSONObject().put("userId", userId).put("muted", muted))!!.getJSONArray("members"))
+    private fun parseAdminMembers(a: JSONArray): List<AdminMember> = (0 until a.length()).map { a.getJSONObject(it) }.map { m ->
+        AdminMember(m.getString("id"), m.optString("name"), m.optString("email"), m.optString("role", "member"), m.optBoolean("isOwner"),
+            m.optBoolean("online"), m.optBoolean("sharing", true), m.optBoolean("muted"),
+            if (m.isNull("speedKmh")) null else m.getInt("speedKmh"),
+            if (m.isNull("lastSeenMs")) null else m.getLong("lastSeenMs"),
+            if (m.isNull("distanceToCaptainM")) null else m.getInt("distanceToCaptainM"),
+            if (m.isNull("joinedAt")) null else m.getLong("joinedAt"))
+    }
     fun deleteAccount() { call("DELETE", "/me") }
 
     fun parseGroup(o: JSONObject): Group {

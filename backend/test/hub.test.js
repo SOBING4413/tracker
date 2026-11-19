@@ -142,3 +142,69 @@ test('inactive group cannot be joined, a missing group is rejected without crash
   assert.throws(() => s.hub.join(s.g, s.cap, { send() {} }), /forbidden/);
   assert.throws(() => s.hub.join(undefined, s.cap, { send() {} }), /forbidden/);
 });
+
+// ---- chat, captain mute, captain panel data ----
+test('chat: message reaches everyone online (sender included) and is kept for the snapshot', () => {
+  const s = setup();
+  const msg = s.hub.chat(s.g, s.budi, '  Istirahat di SPBU depan  ');
+  assert.equal(msg.text, 'Istirahat di SPBU depan');
+  for (const who of ['cap', 'budi']) assert.ok(s.inbox[who].some((m) => m.t === 'chat' && m.id === msg.id));
+  const late = []; const eve = s.store.createUser({ email: 'late@x.id', displayName: 'late', passwordHash: 'x' });
+  s.store.addMember(s.g, eve.id);
+  s.hub.join(s.g, eve, { send: (m) => late.push(m) });
+  assert.equal(late.find((m) => m.t === 'snapshot').chat[0].text, 'Istirahat di SPBU depan');
+});
+
+test('chat: empty, over-long, rate-limited; announce flag only honoured for the captain', () => {
+  const s = setup();
+  assert.throws(() => s.hub.chat(s.g, s.budi, '   '), /empty/);
+  assert.equal(s.hub.chat(s.g, s.budi, 'x'.repeat(900)).text.length, 500);
+  for (let i = 0; i < 4; i++) s.hub.chat(s.g, s.budi, 'hi ' + i);
+  assert.throws(() => s.hub.chat(s.g, s.budi, 'terlalu cepat'), /too many/);
+  s.t.now += 6000;                                   // window passed
+  assert.equal(s.hub.chat(s.g, s.budi, 'lagi', true).announce, false);
+  assert.equal(s.hub.chat(s.g, s.cap, 'Semua kumpul', true).announce, true);
+});
+
+test('captain mute: blocks chat, PTT and audio; a muted speaker loses the floor; unmute restores', () => {
+  const s = setup();
+  s.hub.pttRequest(s.g, s.budi.id);
+  s.hub.setMuted(s.g, s.budi.id, true);
+  assert.equal(s.hub.audio(s.g, s.budi.id, Buffer.alloc(4)), false);
+  assert.equal(s.hub.pttRequest(s.g, s.budi.id).granted, false);
+  assert.throws(() => s.hub.chat(s.g, s.budi, 'halo'), /muted/);
+  assert.ok(s.inbox.cap.some((m) => m.t === 'muted' && m.userId === s.budi.id && m.muted === true));
+  assert.ok(s.inbox.cap.some((m) => m.t === 'floor' && m.userId === null));
+  s.hub.setMuted(s.g, s.budi.id, false);
+  assert.equal(s.hub.pttRequest(s.g, s.budi.id).granted, true);
+});
+
+test('adminView: roles, presence, speed, distance to captain; paused sharing exposes no position', () => {
+  const s = setup();
+  s.hub.location(s.g, s.cap, { lat: -6.2, lng: 106.8 });
+  s.hub.location(s.g, s.budi, { lat: -6.2 - 1 / 111.19, lng: 106.8, speed: 10 });
+  s.t.now += 5000;
+  let v = s.hub.adminView(s.g);
+  const b = v.find((m) => m.id === s.budi.id), c = v.find((m) => m.id === s.cap.id);
+  assert.equal(c.role, 'captain'); assert.equal(c.distanceToCaptainM, null);
+  assert.equal(b.role, 'member'); assert.equal(b.online, true); assert.equal(b.speedKmh, 36);
+  assert.ok(Math.abs(b.distanceToCaptainM - 1000) < 30); assert.equal(b.lastSeenMs, 5000);
+  s.hub.setSharing(s.g, s.budi.id, false);
+  v = s.hub.adminView(s.g); const b2 = v.find((m) => m.id === s.budi.id);
+  assert.equal(b2.sharing, false); assert.equal(b2.lat, null);
+});
+
+test('store: removing a member clears mute/join info; deleting an account removes their chat messages', () => {
+  const s = setup();
+  s.store.addMember(s.g, s.budi.id); s.hub.setMuted(s.g, s.budi.id, true); s.hub.chat(s.g, s.cap, 'a');
+  s.hub.setMuted(s.g, s.budi.id, false); s.hub.chat(s.g, s.budi, 'b');
+  s.store.deleteUser(s.budi.id);
+  assert.deepEqual(s.g.chat.map((m) => m.text), ['a']);
+  assert.ok(!s.g.joined.has(s.budi.id) && !s.g.muted.has(s.budi.id));
+});
+
+test('notifyGroupChanged: online members are told to re-fetch the group', () => {
+  const s = setup();
+  s.hub.notifyGroupChanged(s.g);
+  assert.ok(s.inbox.cap.some((m) => m.t === 'group') && s.inbox.budi.some((m) => m.t === 'group'));
+});

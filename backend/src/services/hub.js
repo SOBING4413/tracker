@@ -4,6 +4,8 @@ const { haversine } = require('./geo');
 
 // Location history is thinned out so memory stays bounded: keep a point every 30 s, or sooner after moving 10 m.
 const HIST_MIN_MS = 30000, HIST_MIN_M = 10;
+// Chat limits: message length, and at most CHAT_MAX_MSGS messages per user within CHAT_WINDOW_MS.
+const CHAT_MAX_LEN = 500, CHAT_WINDOW_MS = 5000, CHAT_MAX_MSGS = 5, CHAT_SNAPSHOT = 50;
 
 /**
  * Realtime hub: per-group presence, latest positions, alert engine, PTT floor control, SOS.
@@ -16,7 +18,7 @@ class Hub {
   }
   room(g) {
     if (!this.rooms.has(g.id)) this.rooms.set(g.id, { clients: new Map(), pos: new Map(), sharing: new Set(),
-      engine: new AlertEngine({ thresholdM: g.thresholdM }), floor: null, lastHist: new Map() });
+      engine: new AlertEngine({ thresholdM: g.thresholdM }), floor: null, lastHist: new Map(), chatTimes: new Map() });
     return this.rooms.get(g.id);
   }
   broadcast(r, msg, exceptId) { for (const [id, c] of r.clients) if (id !== exceptId) c.send(msg); }
@@ -29,7 +31,8 @@ class Hub {
     if (old && old !== client) old.close?.();   // same user reconnecting: drop the stale (half-open) socket
     this.broadcast(r, { t: 'presence', userId: user.id, online: true }, user.id);
     const now = this.clock();   // don't present long-gone riders' last positions as if they were live
-    client.send({ t: 'snapshot', positions: [...r.pos.values()].filter((p) => now - p.ts <= r.engine.staleMs), floor: r.floor });
+    client.send({ t: 'snapshot', positions: [...r.pos.values()].filter((p) => now - p.ts <= r.engine.staleMs), floor: r.floor,
+      chat: (group.chat || []).slice(-CHAT_SNAPSHOT), muted: [...(group.muted || [])] });
   }
   /** `client` = the connection that closed; if the user already reconnected with a newer one, do nothing. */
   leave(group, userId, client) {
@@ -90,6 +93,7 @@ class Hub {
   // Push-to-talk floor control: one speaker at a time; captain can pre-empt.
   pttRequest(group, userId) {
     const r = this.room(group); const now = this.clock();
+    if (group.muted?.has(userId)) return { granted: false, holder: null, muted: true };   // muted by the captain
     if (r.floor && r.floor.userId !== userId && !(group.captainId === userId)) return { granted: false, holder: r.floor.userId };
     r.floor = { userId, since: now };
     this.broadcast(r, { t: 'floor', userId });
@@ -107,9 +111,53 @@ class Hub {
   /** Relay a raw audio frame from the current floor holder to all other online members. */
   audio(group, userId, frame) {
     const r = this.room(group);
-    if (r.floor?.userId !== userId) return false; // only the speaker may transmit
+    if (r.floor?.userId !== userId || group.muted?.has(userId)) return false; // only the speaker may transmit
     for (const [id, c] of r.clients) if (id !== userId && c.sendBinary) c.sendBinary(frame);
     return true;
+  }
+  /** Group chat. Rate-limited, length-capped, blocked for muted members. Only the captain's `announce` flag is honoured. */
+  chat(group, user, text, announce = false) {
+    const body = typeof text === 'string' ? text.trim().slice(0, CHAT_MAX_LEN) : '';
+    if (!body) throw new Error('empty message');
+    if (group.muted?.has(user.id)) throw new Error('muted by captain');
+    const r = this.room(group); const now = this.clock();
+    const times = (r.chatTimes.get(user.id) || []).filter((t) => now - t < CHAT_WINDOW_MS);
+    if (times.length >= CHAT_MAX_MSGS) throw new Error('too many messages');
+    times.push(now); r.chatTimes.set(user.id, times);
+    const msg = { t: 'chat', id: this.store.newId(), userId: user.id, name: user.displayName, text: body, ts: now,
+      announce: !!announce && group.captainId === user.id };
+    this.store.addChat(group, msg);
+    this.broadcast(r, msg);   // to everybody online, sender included, so every device shows the same list
+    return msg;
+  }
+  /** Tell every online member that roles/members changed, so each app re-fetches the group (e.g. to show or hide the captain panel). */
+  notifyGroupChanged(group) { const r = this.rooms.get(group.id); if (r) this.broadcast(r, { t: 'group' }); }
+  /** Captain action: mute/unmute a member (voice + chat). A muted member who holds the floor loses it at once. */
+  setMuted(group, userId, muted) {
+    if (muted) group.muted.add(userId); else group.muted.delete(userId);
+    const r = this.room(group);
+    if (muted && r.floor?.userId === userId) { r.floor = null; this.broadcast(r, { t: 'floor', userId: null }); }
+    this.broadcast(r, { t: 'muted', userId, muted: !!muted });
+  }
+  /** Captain panel data: every member with role, presence and live details. A member who paused sharing has no position here. */
+  adminView(group) {
+    const r = this.rooms.get(group.id); const now = this.clock();
+    const capPos = r?.pos.get(group.captainId);
+    return [...group.members].map((id) => {
+      const u = this.store.users.get(id); if (!u) return null;
+      const p = r?.pos.get(id);
+      return {
+        id, name: u.displayName, email: u.email,
+        role: id === group.captainId ? 'captain' : id === group.sweeperId ? 'sweeper' : 'member',
+        isOwner: id === group.ownerId,
+        online: !!r?.clients.has(id), sharing: !r?.sharing.has(id), muted: !!group.muted?.has(id),
+        lat: p?.lat ?? null, lng: p?.lng ?? null,
+        speedKmh: p && p.speed != null ? Math.round(p.speed * 3.6) : null,
+        lastSeenMs: p ? now - p.ts : null,
+        distanceToCaptainM: p && capPos && id !== group.captainId ? Math.round(haversine(capPos, p)) : null,
+        joinedAt: group.joined?.get(id) ?? null,
+      };
+    }).filter(Boolean);
   }
   sos(group, user, message) {
     const r = this.room(group); const p = r.pos.get(user.id);

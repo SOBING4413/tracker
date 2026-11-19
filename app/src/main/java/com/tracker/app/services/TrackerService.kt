@@ -46,6 +46,9 @@ class TrackerService : Service() {
         }
     }
     val streamer get() = voice
+    // Read from the always-on mic's audio thread, hence @Volatile (written on the main thread in onMessage).
+    @Volatile private var iAmMuted = false
+    @Volatile private var floorBusy = false   // somebody else is speaking
 
     override fun onBind(i: Intent?): IBinder? = null
     override fun onCreate() { super.onCreate(); instance = this; fused = LocationServices.getFusedLocationProviderClient(this) }
@@ -61,9 +64,7 @@ class TrackerService : Service() {
 
     private fun startTracking() {
         val gid = Prefs.groupId ?: return stopSelf()
-        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-        if (Build.VERSION.SDK_INT >= 30 && has(Manifest.permission.RECORD_AUDIO)) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        ServiceCompat.startForeground(this, 1, AlertNotifier.foreground(this, "Sharing location with your group"), if (Build.VERSION.SDK_INT >= 29) type else 0)
+        refreshForeground()
         if (rt != null) return
         loadGroup(gid)
         voice = VoiceStreamer(this) { rt?.sendBytes(it) ?: false }
@@ -72,7 +73,15 @@ class TrackerService : Service() {
             if (on) { TrackerState.online = true; TrackerState.notifyChanged(); lastLoc?.let { sendFix(it, stationary = true) } } else main.postDelayed(markOffline, 3_000)
         }, { voice?.play(it) }, onRejected = ::onRejected).also { it.start() }
         startLocation()
+        if (Prefs.openMic && has(Manifest.permission.RECORD_AUDIO)) runCatching { setOpenMic(true) }   // restore the always-on mic after a restart
         main.removeCallbacks(heartbeat); main.postDelayed(heartbeat, 20_000)
+    }
+
+    /** (Re)declare the foreground-service types; the microphone type is only allowed once RECORD_AUDIO is granted. */
+    private fun refreshForeground() {
+        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        if (Build.VERSION.SDK_INT >= 30 && has(Manifest.permission.RECORD_AUDIO)) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        ServiceCompat.startForeground(this, 1, AlertNotifier.foreground(this, "Sharing location with your group"), if (Build.VERSION.SDK_INT >= 29) type else 0)
     }
 
     private fun has(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
@@ -138,10 +147,35 @@ class TrackerService : Service() {
     private fun onMessage(m: JSONObject) {
         val me = Prefs.userId
         when (m.optString("t")) {
-            "snapshot" -> m.getJSONArray("positions").let { a -> for (i in 0 until a.length()) putPos(a.getJSONObject(i)) }
+            "snapshot" -> {
+                m.getJSONArray("positions").let { a -> for (i in 0 until a.length()) putPos(a.getJSONObject(i)) }
+                TrackerState.floorHolder = m.optJSONObject("floor")?.optString("userId")?.ifEmpty { null }
+                m.optJSONArray("chat")?.let { a -> for (i in 0 until a.length()) TrackerState.addChat(parseChat(a.getJSONObject(i))) }   // history only: no notification, no unread badge
+                m.optJSONArray("muted")?.let { a -> TrackerState.mutedIds.clear(); for (i in 0 until a.length()) TrackerState.mutedIds.add(a.getString(i)) }
+                syncVoiceFlags()
+            }
             "location" -> putPos(m)
             "presence" -> if (!m.getBoolean("online")) TrackerState.positions.remove(m.getString("userId"))
-            "floor" -> TrackerState.floorHolder = m.optString("userId").ifEmpty { null }.takeIf { !m.isNull("userId") }
+            "floor" -> { TrackerState.floorHolder = m.optString("userId").ifEmpty { null }.takeIf { !m.isNull("userId") }; syncVoiceFlags() }
+            "chat" -> {
+                val c = parseChat(m)
+                if (TrackerState.addChat(c) && c.userId != me) {
+                    TrackerState.unreadChat++
+                    if (!TrackerState.uiVisible() || c.announce) AlertNotifier.chat(this, c.name, c.text, c.announce)
+                }
+            }
+            "muted" -> {
+                val uid = m.getString("userId")
+                if (m.optBoolean("muted")) TrackerState.mutedIds.add(uid) else TrackerState.mutedIds.remove(uid)
+                if (uid == me) toast(if (m.optBoolean("muted")) "Anda dibisukan oleh Captain (suara & chat)" else "Captain mengaktifkan suara Anda kembali")
+                syncVoiceFlags()
+            }
+            "group" -> Prefs.groupId?.let { loadGroup(it) }   // roles/members changed: re-fetch (shows or hides the captain panel)
+            "ptt_result" -> if (!m.optBoolean("granted") && m.optBoolean("muted")) toast("Anda dibisukan oleh Captain")
+            "error" -> when (m.optString("message")) {
+                "too many messages" -> toast("Terlalu cepat, tunggu sebentar")
+                "muted by captain" -> toast("Anda dibisukan oleh Captain")
+            }
             "alert" -> {
                 val type = m.getString("type"); val uid = m.getString("userId")
                 if (type == "rejoined") { TrackerState.addAlert(AlertItem(type, uid, m.optString("name"), 0, System.currentTimeMillis())) }
@@ -160,13 +194,44 @@ class TrackerService : Service() {
         TrackerState.notifyChanged()
     }
 
+    private fun parseChat(o: JSONObject) = ChatMessage(o.getString("id"), o.getString("userId"), o.optString("name"), o.optString("text"), o.optLong("ts"), o.optBoolean("announce"))
+    private fun toast(s: String) = android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show()
+    private fun syncVoiceFlags() {
+        iAmMuted = TrackerState.isMuted()
+        val holder = TrackerState.floorHolder
+        floorBusy = holder != null && holder != Prefs.userId
+    }
+
     private fun putPos(o: JSONObject) {
         val id = o.getString("userId")
         TrackerState.positions[id] = Position(id, o.optString("name"), o.getDouble("lat"), o.getDouble("lng"),
             o.optDouble("speed").takeIf { !o.isNull("speed") && !it.isNaN() }, o.optDouble("heading").takeIf { !o.isNull("heading") && !it.isNaN() }, o.getLong("ts"), o.optBoolean("isCaptain"))
     }
 
-    fun pttDown() { send(JSONObject().put("t", "ptt_start")); voice?.takeIf { has(Manifest.permission.RECORD_AUDIO) }?.let { it.routeToBluetoothIfAvailable(); it.startTalking() } }
+    fun sendChat(text: String, announce: Boolean = false) = send(JSONObject().put("t", "chat").put("text", text).put("announce", announce))
+
+    /**
+     * Switch between push-to-talk (off) and the always-on mic (on). Returns false if it could not be enabled
+     * (no microphone permission / audio device busy). The caller stores the choice in Prefs.openMic.
+     */
+    fun setOpenMic(on: Boolean): Boolean {
+        val v = voice ?: return false
+        if (!on) { v.stopOpenMic(); return true }
+        if (!has(Manifest.permission.RECORD_AUDIO)) return false
+        runCatching { refreshForeground() }   // picks up the microphone service type if the permission was granted after start
+        v.sensitivity = Prefs.voxLevel / 100f
+        v.routeToBluetoothIfAvailable()
+        v.startOpenMic(
+            onSpeechStart = {
+                // Stay silent if muted by the captain, or someone else is talking (the captain may cut in, like with the PTT button).
+                if (iAmMuted || (floorBusy && !TrackerState.isCaptain())) false else send(JSONObject().put("t", "ptt_start"))
+            },
+            onSpeechEnd = { send(JSONObject().put("t", "ptt_stop")) },
+        )
+        return v.isOpenMic
+    }
+
+    fun pttDown() { if (voice?.isOpenMic == true) return; if (iAmMuted) { toast("Anda dibisukan oleh Captain"); return }; send(JSONObject().put("t", "ptt_start")); voice?.takeIf { has(Manifest.permission.RECORD_AUDIO) }?.let { it.routeToBluetoothIfAvailable(); it.startTalking() } }
     fun pttUp() { voice?.stopTalking(); send(JSONObject().put("t", "ptt_stop")) }
 
     private fun shutdown() {
