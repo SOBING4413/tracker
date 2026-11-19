@@ -31,6 +31,8 @@ class RealtimeClient(
     private val onMessage: (JSONObject) -> Unit,
     private val onState: (Boolean) -> Unit,
     private val onBinary: ((ByteArray) -> Unit)? = null,
+    /** Server closed with 4003: token invalid, kicked, or group ended/gone. The owner decides what to do (see TrackerService). */
+    private val onRejected: () -> Unit = {},
 ) {
     private val http = OkHttpClient.Builder().pingInterval(10, TimeUnit.SECONDS).build()
     private val main = Handler(Looper.getMainLooper())
@@ -101,6 +103,7 @@ class RealtimeClient(
         ws = null
         if (connected) { connected = false; onState(false) }
         if (stopped) return
+        if (code == 4003) onRejected()
         // 4003 = token/group rejected, 4000 = replaced by another login of the same account:
         // retrying fast is pointless (and two devices would kick each other in a loop).
         val base = if (code == 4003 || code == 4000) 30_000L else min(8_000L, 500L shl min(retry, 4))

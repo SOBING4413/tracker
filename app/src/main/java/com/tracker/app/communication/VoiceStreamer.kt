@@ -16,7 +16,11 @@ class VoiceStreamer(private val ctx: Context, private val sendFrame: (ByteArray)
     private val frameBytes = rate / 50 * 2
     @Volatile private var recording = false
     private var thread: Thread? = null
-    private var track: AudioTrack? = null
+    @Volatile private var track: AudioTrack? = null
+    // Playback runs on its own thread: AudioTrack.write blocks when its buffer is full, and doing that on OkHttp's reader thread
+    // delayed pongs and could get the connection dropped. Bounded queue: if we fall behind, the oldest frames are discarded.
+    private val playQueue = java.util.concurrent.ThreadPoolExecutor(1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+        java.util.concurrent.ArrayBlockingQueue(40), java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy())
     @Volatile var muted = false
     @Volatile var volume = 1.0f
         set(v) { field = v.coerceIn(0f, 1f); track?.setVolume(field) }
@@ -47,11 +51,15 @@ class VoiceStreamer(private val ctx: Context, private val sendFrame: (ByteArray)
 
     fun play(frame: ByteArray) {
         if (muted) return
+        runCatching { playQueue.execute { runCatching { writeFrame(frame) } } }   // ignore: rejected after release(), or track released mid-write
+    }
+
+    private fun writeFrame(frame: ByteArray) {
         val t = track ?: AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
             .setBufferSizeInBytes(frameBytes * 8).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.setVolume(volume); it.play(); track = it }
         t.write(frame, 0, frame.size)
     }
-    fun release() { stopTalking(); track?.release(); track = null }
+    fun release() { stopTalking(); playQueue.shutdownNow(); track?.release(); track = null }
 }

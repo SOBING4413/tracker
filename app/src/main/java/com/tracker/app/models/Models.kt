@@ -3,7 +3,7 @@ package com.tracker.app.models
 data class Member(val id: String, val name: String, val photoUrl: String?)
 data class Group(
     val id: String, val name: String, val inviteCode: String,
-    val captainId: String?, val sweeperId: String?, val thresholdM: Int, val members: List<Member>,
+    val captainId: String?, val sweeperId: String?, val thresholdM: Int, val members: List<Member>, val active: Boolean = true,
 )
 data class Position(
     val userId: String, val name: String, val lat: Double, val lng: Double,

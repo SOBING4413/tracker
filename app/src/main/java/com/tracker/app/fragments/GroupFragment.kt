@@ -68,10 +68,10 @@ class GroupFragment : Fragment() {
         if (g == null) { v.findViewById<TextView>(R.id.groupInfo).text = "Belum ada grup"; return }
         v.findViewById<TextView>(R.id.groupInfo).text = "${g.name}\nKode: ${g.inviteCode}\nAnggota aktif: ${TrackerState.positions.size}/${g.members.size}  •  Batas: ${g.thresholdM} m"
         for (m in g.members) {
-            val role = when (m.id) { g.captainId -> " 🏍 Road Captain"; g.sweeperId -> " 🧹 Sweeper"; else -> "" }
-            val on = if (TrackerState.positions.containsKey(m.id)) "● " else "○ "
+            val role = when (m.id) { g.captainId -> " (Road Captain)"; g.sweeperId -> " (Sweeper)"; else -> "" }
+            val status = if (TrackerState.positions.containsKey(m.id)) "Online" else "Offline"
             box.addView(TextView(context).apply {
-                text = on + m.name + role; textSize = 17f; setPadding(0, 18, 0, 18); setTextColor(resources.getColor(R.color.text_primary, null))
+                text = m.name + role + "  |  " + status; textSize = 17f; setPadding(0, 18, 0, 18); setTextColor(resources.getColor(R.color.text_primary, null))
                 setOnLongClickListener { manage(g, m.id); true }
             })
         }

@@ -1,1 +1,7 @@
 -keep class org.osmdroid.** { *; }
+-keep class com.tracker.app.models.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**

@@ -47,6 +47,6 @@ class TalkFragment : Fragment() {
         if (!isAdded) return
         v.findViewById<TextView>(R.id.conn).text = TrackerState.connLabel()
         val h = TrackerState.floorHolder
-        v.findViewById<TextView>(R.id.speaker).text = if (h == null) "Channel idle" else "🎙 " + (TrackerState.group?.members?.firstOrNull { it.id == h }?.name ?: "Rider") + " berbicara"
+        v.findViewById<TextView>(R.id.speaker).text = if (h == null) "Channel idle" else (TrackerState.group?.members?.firstOrNull { it.id == h }?.name ?: "Rider") + " sedang berbicara"
     }
 }

@@ -1,24 +1,46 @@
 'use strict';
 const crypto = require('crypto');
+const MAX_HISTORY = Number(process.env.MAX_HISTORY_POINTS || 200000);
+const MAX_ALERTS = 2000;
 /** In-memory store (development / tests). Swap for a pg-backed implementation with the same API. */
 class MemoryStore {
   constructor() { this.users = new Map(); this.groups = new Map(); this.alerts = []; this.history = []; }
   newId() { return crypto.randomUUID(); }
-  userByEmail(email) { return [...this.users.values()].find((u) => u.email === email.toLowerCase()); }
+  userByEmail(email) {
+    if (typeof email !== 'string') return undefined;
+    const e = email.toLowerCase();
+    return [...this.users.values()].find((u) => u.email === e);
+  }
   createUser(u) { const user = { id: this.newId(), photoUrl: null, ...u, email: u.email.toLowerCase() }; this.users.set(user.id, user); return user; }
   deleteUser(id) {
     this.users.delete(id);
-    for (const g of this.groups.values()) { g.members.delete(id); if (g.captainId === id) g.captainId = null; if (g.sweeperId === id) g.sweeperId = null; }
+    for (const g of this.groups.values()) if (g.members.has(id)) this.removeMember(g, id);
     this.history = this.history.filter((h) => h.userId !== id);
+  }
+  /** Remove a member and keep the group consistent: a leaving owner hands ownership to a remaining member. */
+  removeMember(g, userId) {
+    g.members.delete(userId);
+    if (g.sweeperId === userId) g.sweeperId = null;
+    if (g.ownerId === userId) g.ownerId = g.members.values().next().value ?? null;
+    if (g.captainId === userId) g.captainId = g.ownerId;
+    if (g.members.size === 0 && g.active) { g.active = false; g.endedAt = Date.now(); }
   }
   createGroup(name, ownerId) {
     const g = { id: this.newId(), name, ownerId, captainId: ownerId, sweeperId: null, thresholdM: 1100,
-      inviteCode: crypto.randomBytes(3).toString('hex').toUpperCase(), active: true, members: new Set([ownerId]), createdAt: Date.now() };
+      inviteCode: crypto.randomBytes(5).toString('hex').toUpperCase(), // 10 hex chars: not practical to guess
+      active: true, members: new Set([ownerId]), createdAt: Date.now() };
     this.groups.set(g.id, g); return g;
   }
-  groupByCode(code) { return [...this.groups.values()].find((g) => g.inviteCode === String(code).toUpperCase() && g.active); }
+  groupByCode(code) { const c = String(code).trim().toUpperCase(); return [...this.groups.values()].find((g) => g.inviteCode === c && g.active); }
   groupsOf(userId) { return [...this.groups.values()].filter((g) => g.members.has(userId)); }
-  addHistory(row) { this.history.push(row); }
+  addHistory(row) {
+    this.history.push(row);
+    if (this.history.length > MAX_HISTORY * 1.1) this.history.splice(0, this.history.length - MAX_HISTORY); // hard memory cap
+  }
+  addAlert(a) {
+    this.alerts.push(a);
+    if (this.alerts.length > MAX_ALERTS * 1.1) this.alerts.splice(0, this.alerts.length - MAX_ALERTS);
+  }
   purgeHistory(olderThanMs) { this.history = this.history.filter((h) => h.ts >= olderThanMs); }
 }
 module.exports = { MemoryStore };

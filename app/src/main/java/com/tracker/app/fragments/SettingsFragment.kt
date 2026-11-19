@@ -23,8 +23,9 @@ class SettingsFragment : Fragment() {
         fun spin(id: Int, items: List<Int>, unit: String, cur: Int, onPick: (Int) -> Unit) = v.findViewById<Spinner>(id).apply {
             adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, items.map { "$it $unit" })
             setSelection(items.indexOf(cur).coerceAtLeast(0))
+            var current = cur   // track the live value, otherwise re-picking the original value was ignored
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(p: AdapterView<*>?, w: View?, pos: Int, id: Long) { if (items[pos] != cur) onPick(items[pos]) }
+                override fun onItemSelected(p: AdapterView<*>?, w: View?, pos: Int, id: Long) { if (items[pos] != current) { current = items[pos]; onPick(items[pos]) } }
                 override fun onNothingSelected(p: AdapterView<*>?) {}
             }
         }

@@ -7,10 +7,15 @@ const { Hub } = require('./services/hub');
 const { buildApi } = require('./controllers/api');
 const { attachWebSocket } = require('./websocket');
 
+// State lives in memory, so a restart loses everything: prefer logging an unexpected error over dying from it.
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e));
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e));
+
 const store = new MemoryStore();
 const hub = new Hub(store);
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);   // behind Render's proxy: req.ip must be the real client, not the proxy (rate limits)
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api', buildApi(store, hub));
 const server = http.createServer(app);

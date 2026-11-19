@@ -30,8 +30,9 @@ class MapFragment : Fragment() {
         map.overlays.clear()
         val g = TrackerState.group; val now = System.currentTimeMillis()
         val me = TrackerState.positions[Prefs.userId]
-        val separated = TrackerState.alerts.filter { it.type == "separated" || it.type == "repeat" }.map { it.userId }.toSet() -
-            TrackerState.alerts.filter { it.type == "rejoined" }.map { it.userId }.toSet()
+        // A rider is separated if the LAST event about them was separated/repeat (not rejoined); later entries overwrite earlier ones.
+        val separated = TrackerState.alerts.filter { it.userId != null && (it.type == "separated" || it.type == "repeat" || it.type == "rejoined") }
+            .associate { it.userId!! to (it.type != "rejoined") }.filterValues { it }.keys
         val focus = activity?.intent?.getStringExtra("focus")
         for (p in TrackerState.positions.values) {
             val age = (now - p.ts) / 1000
@@ -39,13 +40,13 @@ class MapFragment : Fragment() {
             val dist = me?.let { haversineM(it.lat, it.lng, p.lat, p.lng).toInt() }
             map.overlays.add(Marker(map).apply {
                 position = GeoPoint(p.lat, p.lng); setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                title = (if (p.userId in separated) "⚠ " else "") + p.name + (if (role.isNotEmpty()) " ($role)" else "")
+                title = (if (p.userId in separated) "[Tertinggal] " else "") + p.name + (if (role.isNotEmpty()) " ($role)" else "")
                 snippet = "${p.speed?.let { "%.0f km/h".format(it * 3.6) } ?: "-"}  •  ${p.heading?.let { "%.0f°".format(it) } ?: "-"}  •  ${age}s lalu" + (dist?.let { "  •  $it m" } ?: "")
                 if (p.userId == focus) showInfoWindow()
             })
         }
         (focus?.let { TrackerState.positions[it] } ?: me ?: TrackerState.positions.values.firstOrNull())?.let { if (!centered || focus != null) { map.controller.setCenter(GeoPoint(it.lat, it.lng)); centered = true } }
-        info.text = if (separated.isNotEmpty()) "⚠ Rider tertinggal: " + separated.joinToString { TrackerState.positions[it]?.name ?: "?" } else "Rombongan menyatu • ${TrackerState.positions.size} online"
+        info.text = if (separated.isNotEmpty()) "Rider tertinggal: " + separated.joinToString { TrackerState.positions[it]?.name ?: "?" } else "Rombongan menyatu • ${TrackerState.positions.size} online"
         map.invalidate()
     }
 }

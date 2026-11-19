@@ -4,6 +4,7 @@
 cd backend && cp .env.example .env   # set JWT_SECRET
 npm install && npm test && npm start
 ```
+Production: always set `JWT_SECRET` (on Render: Environment tab). Behind a proxy the server uses `trust proxy = 1` so rate limits see the real client IP.
 Production: put it behind a TLS reverse proxy (nginx/Caddy) so clients use `https://` and `wss://`.
 The dev server uses an in-memory store (data is lost on restart); `src/database/schema.sql` is the PostgreSQL schema
 for a persistent store (a pg-backed implementation of `services/store.js` is still to be written).

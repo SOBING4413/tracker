@@ -83,3 +83,62 @@ test('stale socket closing after a reconnect does not evict the new connection',
   s.hub.leave(s.g, s.budi.id, newC);                       // real disconnect
   assert.ok(s.inbox.cap.some((m) => m.t === 'presence' && m.online === false));
 });
+
+test('kicked member is disconnected at once and stops receiving locations', () => {
+  const s = setup(); let closedWith = null;
+  const c = s.hub.room(s.g).clients.get(s.budi.id); c.close = (code) => { closedWith = code; };
+  s.g.members.delete(s.budi.id);
+  s.hub.dropUser(s.g, s.budi.id);
+  assert.equal(closedWith, 4003);
+  s.inbox.budi.length = 0;
+  s.hub.location(s.g, s.cap, { lat: 1, lng: 1 });
+  assert.equal(s.inbox.budi.length, 0);
+  assert.ok(s.inbox.cap.some((m) => m.t === 'presence' && m.userId === s.budi.id && m.online === false));
+  // the socket's own late close event must not produce a second "offline" broadcast
+  const before = s.inbox.cap.filter((m) => m.t === 'presence' && m.online === false).length;
+  s.hub.leave(s.g, s.budi.id, c);
+  assert.equal(s.inbox.cap.filter((m) => m.t === 'presence' && m.online === false).length, before);
+});
+
+test('ending a group disconnects everybody and nobody can join it again', () => {
+  const s = setup(); const closed = [];
+  for (const id of [s.cap.id, s.budi.id]) s.hub.room(s.g).clients.get(id).close = (code) => closed.push(code);
+  s.g.active = false; s.hub.closeGroup(s.g);
+  assert.deepEqual(closed, [4003, 4003]);
+  assert.throws(() => s.hub.join(s.g, s.budi, { send() {} }), /forbidden/);
+});
+
+test('delete account drops the user from every room', () => {
+  const s = setup(); let closed = false;
+  s.hub.room(s.g).clients.get(s.budi.id).close = () => { closed = true; };
+  s.hub.dropUserEverywhere(s.budi.id);
+  assert.equal(closed, true);
+  assert.equal(s.hub.room(s.g).clients.has(s.budi.id), false);
+});
+
+test('join snapshot omits riders whose last fix is stale', () => {
+  const s = setup();
+  s.hub.location(s.g, s.budi, { lat: 1, lng: 1 });
+  s.t.now += 5 * 60000;                                    // 5 minutes later, budi went silent
+  s.hub.location(s.g, s.cap, { lat: 1, lng: 1.0001 });
+  const late = [];
+  const rider = s.store.createUser({ email: 'r@x.id', displayName: 'r', passwordHash: 'x' }); s.g.members.add(rider.id);
+  s.hub.join(s.g, rider, { send: (m) => late.push(m) });
+  const snap = late.find((m) => m.t === 'snapshot');
+  assert.deepEqual(snap.positions.map((p) => p.userId), [s.cap.id]);
+});
+
+test('location history is thinned out but keeps real movement', () => {
+  const s = setup();
+  for (let i = 0; i < 10; i++) { s.t.now += 5000; s.hub.location(s.g, s.budi, { lat: -6.2, lng: 106.8 }); }   // standing still for 50 s
+  assert.ok(s.store.history.length <= 3, 'stationary rider: ' + s.store.history.length);
+  const n = s.store.history.length;
+  s.t.now += 5000; s.hub.location(s.g, s.budi, { lat: -6.2, lng: 106.8 + 0.001 });                            // moved ~110 m
+  assert.equal(s.store.history.length, n + 1);
+});
+
+test('inactive group cannot be joined, a missing group is rejected without crashing', () => {
+  const s = setup(); s.g.active = false;
+  assert.throws(() => s.hub.join(s.g, s.cap, { send() {} }), /forbidden/);
+  assert.throws(() => s.hub.join(undefined, s.cap, { send() {} }), /forbidden/);
+});

@@ -12,7 +12,12 @@ import java.io.IOException
 
 /** Blocking REST client; call from a background thread. */
 object ApiClient {
-    private val http = OkHttpClient()
+    // Render's free tier needs ~50 s to wake up, so the default 10 s timeouts made login/group calls fail on a cold server.
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS).readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
+    /** Called (from any thread) when the server says our token is no longer valid, e.g. the account is gone after a server restart. */
+    @Volatile var onUnauthorized: (() -> Unit)? = null
     private val JSON = "application/json".toMediaType()
 
     class ApiError(val code: Int, message: String) : IOException(message)
@@ -23,7 +28,10 @@ object ApiClient {
         b.method(method, if (body != null) body.toString().toRequestBody(JSON) else if (method == "GET" || method == "DELETE") null else "".toRequestBody(JSON))
         http.newCall(b.build()).execute().use { r ->
             val text = r.body?.string().orEmpty()
-            if (!r.isSuccessful) throw ApiError(r.code, runCatching { JSONObject(text).getString("error") }.getOrDefault("HTTP ${r.code}"))
+            if (!r.isSuccessful) {
+                if (r.code == 401 && auth) onUnauthorized?.invoke()
+                throw ApiError(r.code, runCatching { JSONObject(text).getString("error") }.getOrDefault("HTTP ${r.code}"))
+            }
             return if (text.isBlank()) null else JSONObject(text)
         }
     }
@@ -49,6 +57,7 @@ object ApiClient {
             o.optString("captainId").ifEmpty { null }.takeIf { !o.isNull("captainId") },
             o.optString("sweeperId").ifEmpty { null }.takeIf { !o.isNull("sweeperId") },
             o.getInt("thresholdM"),
-            (0 until ms.length()).map { ms.getJSONObject(it) }.map { Member(it.getString("id"), it.getString("displayName"), it.optString("photoUrl").ifEmpty { null }) })
+            (0 until ms.length()).map { ms.getJSONObject(it) }.map { Member(it.getString("id"), it.getString("displayName"), it.optString("photoUrl").ifEmpty { null }) },
+            o.optBoolean("active", true))
     }
 }

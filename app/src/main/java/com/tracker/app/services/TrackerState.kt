@@ -17,6 +17,7 @@ object TrackerState {
         online -> "Terhubung"
         else -> "Offline — mencoba menyambung ulang"
     }
+    fun addAlert(a: AlertItem) { alerts.add(a); if (alerts.size > 500) alerts.subList(0, alerts.size - 500).clear() }
     private val listeners = HashSet<() -> Unit>()
     fun listen(l: () -> Unit) { listeners.add(l) }
     fun unlisten(l: () -> Unit) { listeners.remove(l) }

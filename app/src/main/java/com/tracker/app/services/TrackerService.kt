@@ -33,6 +33,18 @@ class TrackerService : Service() {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     // Short network blips shouldn't flash "offline" in the UI: only report offline if it lasts > 3 s.
     private val markOffline = Runnable { TrackerState.online = false; TrackerState.notifyChanged() }
+    private var lastLoc: Location? = null
+    private var lastSentAt = 0L
+    // While a rider stands still the GPS reports nothing (min-distance filter), and the server would treat them as offline
+    // after 60 s. Re-sending the last fix every 20 s keeps stationary riders "live" for the straggler detection.
+    private val heartbeat = object : Runnable {
+        override fun run() {
+            if (rt == null) return
+            val l = lastLoc
+            if (l != null && TrackerState.gpsOk && System.currentTimeMillis() - TrackerState.lastFixTs < 5 * 60_000 && System.currentTimeMillis() - lastSentAt >= 20_000) sendFix(l, stationary = true)
+            main.postDelayed(this, 20_000)
+        }
+    }
     val streamer get() = voice
 
     override fun onBind(i: Intent?): IBinder? = null
@@ -53,13 +65,14 @@ class TrackerService : Service() {
         if (Build.VERSION.SDK_INT >= 30 && has(Manifest.permission.RECORD_AUDIO)) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         ServiceCompat.startForeground(this, 1, AlertNotifier.foreground(this, "Sharing location with your group"), if (Build.VERSION.SDK_INT >= 29) type else 0)
         if (rt != null) return
-        thread { runCatching { ApiClient.getGroup(gid) }.onSuccess { g -> android.os.Handler(mainLooper).post { TrackerState.group = g; TrackerState.notifyChanged() } } }
+        loadGroup(gid)
         voice = VoiceStreamer(this) { rt?.sendBytes(it) ?: false }
         rt = RealtimeClient(applicationContext, gid, ::onMessage, { on ->
             main.removeCallbacks(markOffline)
-            if (on) { TrackerState.online = true; TrackerState.notifyChanged() } else main.postDelayed(markOffline, 3_000)
-        }, { voice?.play(it) }).also { it.start() }
+            if (on) { TrackerState.online = true; TrackerState.notifyChanged(); lastLoc?.let { sendFix(it, stationary = true) } } else main.postDelayed(markOffline, 3_000)
+        }, { voice?.play(it) }, onRejected = ::onRejected).also { it.start() }
         startLocation()
+        main.removeCallbacks(heartbeat); main.postDelayed(heartbeat, 20_000)
     }
 
     private fun has(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
@@ -78,11 +91,46 @@ class TrackerService : Service() {
     }
 
     private fun publish(l: Location) {
-        TrackerState.lastFixTs = System.currentTimeMillis(); TrackerState.gpsOk = true
+        TrackerState.lastFixTs = System.currentTimeMillis(); TrackerState.gpsOk = true; lastLoc = l
         if (!Prefs.shareLocation) return
-        send(JSONObject().put("t", "location").put("lat", l.latitude).put("lng", l.longitude)
-            .put("speed", if (l.hasSpeed()) l.speed.toDouble() else JSONObject.NULL).put("heading", if (l.hasBearing()) l.bearing.toDouble() else JSONObject.NULL))
+        sendFix(l)
         TrackerState.notifyChanged()
+    }
+
+    private fun sendFix(l: Location, stationary: Boolean = false) {
+        if (!Prefs.shareLocation) return
+        lastSentAt = System.currentTimeMillis()
+        send(JSONObject().put("t", "location").put("lat", l.latitude).put("lng", l.longitude)
+            .put("speed", if (stationary) 0.0 else if (l.hasSpeed()) l.speed.toDouble() else JSONObject.NULL)
+            .put("heading", if (l.hasBearing()) l.bearing.toDouble() else JSONObject.NULL))
+    }
+
+    /** Load the group, retrying a few times: right after a cold start (e.g. Render waking up) the first call can fail. */
+    private fun loadGroup(gid: String) = thread {
+        for (attempt in 0 until 5) {
+            val r = runCatching { ApiClient.getGroup(gid) }
+            val e = r.exceptionOrNull()
+            if (r.isSuccess) { main.post { TrackerState.group = r.getOrNull(); TrackerState.notifyChanged() }; return@thread }
+            if (e is ApiClient.ApiError && e.code == 403) { main.post { leaveGroupLocally() }; return@thread }
+            if (e is ApiClient.ApiError && e.code == 401) return@thread   // ApiClient.onUnauthorized logs us out
+            Thread.sleep(3_000L * (attempt + 1))
+        }
+    }
+
+    /** The server closed our connection with 4003: find out why instead of reconnecting forever. */
+    private fun onRejected() {
+        val gid = Prefs.groupId ?: return
+        thread {
+            val r = runCatching { ApiClient.getGroup(gid) }
+            val e = r.exceptionOrNull()
+            // 401 is handled globally (ApiClient.onUnauthorized). Network errors: keep retrying.
+            if ((e is ApiClient.ApiError && e.code == 403) || r.getOrNull()?.active == false) main.post { leaveGroupLocally() }
+        }
+    }
+
+    private fun leaveGroupLocally() {
+        android.widget.Toast.makeText(this, "Grup sudah berakhir atau Anda tidak lagi menjadi anggota", android.widget.Toast.LENGTH_LONG).show()
+        Prefs.groupId = null; TrackerState.group = null; shutdown()
     }
 
     fun send(o: JSONObject) = rt?.send(o) ?: false
@@ -96,16 +144,16 @@ class TrackerService : Service() {
             "floor" -> TrackerState.floorHolder = m.optString("userId").ifEmpty { null }.takeIf { !m.isNull("userId") }
             "alert" -> {
                 val type = m.getString("type"); val uid = m.getString("userId")
-                if (type == "rejoined") { TrackerState.alerts.add(AlertItem(type, uid, m.optString("name"), 0, System.currentTimeMillis())) }
+                if (type == "rejoined") { TrackerState.addAlert(AlertItem(type, uid, m.optString("name"), 0, System.currentTimeMillis())) }
                 else {
                     val item = AlertItem(type, uid, m.optString("name"), m.getInt("distanceM"), System.currentTimeMillis())
-                    TrackerState.alerts.add(item)
+                    TrackerState.addAlert(item)
                     AlertNotifier.straggler(this, uid.hashCode(), item.name ?: "Rider", item.distanceM, uid)
                 }
             }
             "sos" -> {
                 val uid = m.getString("userId")
-                TrackerState.alerts.add(AlertItem("sos", uid, m.optString("name"), 0, System.currentTimeMillis(), m.optString("message")))
+                TrackerState.addAlert(AlertItem("sos", uid, m.optString("name"), 0, System.currentTimeMillis(), m.optString("message")))
                 if (uid != me) AlertNotifier.straggler(this, uid.hashCode() + 7, m.optString("name"), 0, uid, true, m.optString("message"))
             }
         }
@@ -122,7 +170,7 @@ class TrackerService : Service() {
     fun pttUp() { voice?.stopTalking(); send(JSONObject().put("t", "ptt_stop")) }
 
     private fun shutdown() {
-        main.removeCallbacks(markOffline); callback?.let { fused.removeLocationUpdates(it) }; rt?.stop(); rt = null; voice?.release(); TrackerState.reset(); TrackerState.notifyChanged()
+        main.removeCallbacks(markOffline); main.removeCallbacks(heartbeat); lastLoc = null; callback?.let { fused.removeLocationUpdates(it) }; rt?.stop(); rt = null; voice?.release(); TrackerState.reset(); TrackerState.notifyChanged()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE); stopSelf()
     }
     override fun onDestroy() { instance = null; super.onDestroy() }
